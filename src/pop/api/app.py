@@ -71,8 +71,10 @@ ENGAGE_LIMIT = _Limiter(int(os.environ.get("POP_ENGAGE_PER_MIN", "120")))
 
 
 def _client_key(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    """The address our ingress saw. Azure's ingress APPENDS the real client address to X-Forwarded-For,
+    so the last entry is trustworthy; earlier entries are whatever the client sent and can be forged."""
+    fwd = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    return fwd[-1] if fwd else (request.client.host if request.client else "unknown")
 _task: asyncio.Task | None = None
 
 

@@ -108,3 +108,11 @@ def test_join_is_rate_limited_per_client(monkeypatch):
     appmod.JOIN_LIMIT = appmod._Limiter(3)
     codes = [c.post("/api/session", json={"consent": True}).status_code for _ in range(5)]
     assert codes[:3] == [200, 200, 200] and codes[3:] == [429, 429]
+
+
+def test_forged_forwarded_for_cannot_dodge_the_join_limit(monkeypatch):
+    c = _client(monkeypatch)
+    appmod.JOIN_LIMIT = appmod._Limiter(2)
+    codes = [c.post("/api/session", json={"consent": True},
+                    headers={"x-forwarded-for": f"1.2.3.{i}, 9.9.9.9"}).status_code for i in range(4)]
+    assert codes == [200, 200, 429, 429]
