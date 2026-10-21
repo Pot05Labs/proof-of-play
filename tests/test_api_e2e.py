@@ -68,3 +68,12 @@ def test_engagement_and_readout(monkeypatch):
 def test_consent_is_required(monkeypatch):
     c = _client(monkeypatch)
     assert c.post("/api/session", json={"consent": False}).status_code >= 400
+
+
+def test_events_never_run_ahead_of_the_clock(monkeypatch):
+    c = _client(monkeypatch)
+    c.get("/api/match")
+    assert c.get("/api/events").json()["events"] == []
+    appmod.B.seq = 10
+    ev = c.get("/api/events", params={"since": 0}).json()["events"]
+    assert len(ev) == 10 and ev[-1]["seq"] == 10

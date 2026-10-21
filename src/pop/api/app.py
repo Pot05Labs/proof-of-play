@@ -111,6 +111,15 @@ def state():
     return B.engine.state().model_dump()
 
 
+@app.get("/api/events")
+def events(since: int = 0, limit: int = 200):
+    """Match events already played (never ahead of the live clock)."""
+    if B.info is None:
+        B.load()
+    played = B.events[since:B.seq]
+    return {"seq": B.seq, "events": [e.model_dump() for e in played[-limit:]]}
+
+
 @app.get("/api/feed/{session_id}")
 def feed(session_id: str):
     s = LOG.sessions.get(session_id)
