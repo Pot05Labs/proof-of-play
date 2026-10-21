@@ -12,6 +12,8 @@ Hackathon: Microsoft x Premier League, Inside the Game: Developer Hackathon. Cha
 4. **Numbers come from code, words come from AI.** Every figure shown to a viewer is produced by the deterministic engine. Language models only phrase facts they are handed, and every sentence carries the IDs of the facts it uses.
 5. **A skipped test is a failing test.** The builder of a component never certifies it; a separate checker does.
 
+Pitch: 105 x 68 m. Coordinates 0..100 on both axes map onto it.
+
 ## 1. Pipeline
 
 ```

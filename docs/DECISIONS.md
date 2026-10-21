@@ -14,3 +14,11 @@
 
 ## 2026-10-21: simulator realism
 Engine measured median shot distance 9.9 m, 12.25 shots and 1.5 penalties per match. Sent back to the simulator builder: median 13-20 m, 20-30 shots, under 0.6 penalties per match, team xG mostly 0.8-2.2.
+
+## 2026-10-21: simulator v0.1 spec questions (answers from the lead)
+1. Pitch is 105 x 68 m everywhere (simulator and engine). Written into the spec.
+2. Half-time break is excluded from `t_ms`; overlays are timed on play time.
+3. `clock.added` is the added minute being played; `minute` keeps counting. Accepted.
+4. Extra tracking snapshots at half, full time, substitution and red card are accepted; per-minute logic skips `meta.snapshot`.
+5. No schema change. Typed meta models are a later nicety.
+6. xG: 74% of team-matches inside 0.8-2.2 with a long upper tail is realistic. No trim.
