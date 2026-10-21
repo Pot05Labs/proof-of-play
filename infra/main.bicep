@@ -58,6 +58,7 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = {
 resource model 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
   parent: foundry
   name: modelName
+  dependsOn: [ project ]
   sku: { name: 'GlobalStandard', capacity: modelCapacity }
   properties: { model: { format: 'OpenAI', name: modelName, version: modelVersion } }
 }
@@ -128,6 +129,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: env.id
     configuration: {
       ingress: { external: true, targetPort: 8000, transport: 'auto' }
+      registries: image == 'mcr.microsoft.com/k8se/quickstart:latest' ? [] : [ { server: acr.properties.loginServer, identity: 'system' } ]
       secrets: [
         { name: 'admin-key', value: adminKey }
         { name: 'experiment-seed', value: experimentSeed }
@@ -141,7 +143,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           resources: { cpu: json('1.0'), memory: '2Gi' }
           env: [
             { name: 'POP_LLM', value: 'foundry' }
-            { name: 'AZURE_AI_PROJECT_ENDPOINT', value: foundry.properties.endpoint }
+            { name: 'AZURE_AI_PROJECT_ENDPOINT', value: foundry.properties.endpoints['OpenAI Language Model Instance API'] }
             { name: 'AZURE_AI_MODEL_DEPLOYMENT', value: model.name }
             { name: 'COSMOS_ENDPOINT', value: cosmos.properties.documentEndpoint }
             { name: 'EVENTHUB_NAMESPACE', value: '${eh.name}.servicebus.windows.net' }
@@ -159,6 +161,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
 
 // Managed-identity access, no keys anywhere.
 var cogUser = 'a97b65f3-24c7-4388-baec-2e87135dc908'   // Cognitive Services User
+var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'   // AcrPull
 var ehSender = '2b629674-e913-4c01-ae53-ef4638d8f975'  // Azure Event Hubs Data Sender
 var ehReceiver = 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
 
@@ -166,6 +169,11 @@ resource rCog 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(foundry.id, app.id, cogUser)
   scope: foundry
   properties: { principalId: app.identity.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cogUser) }
+}
+resource rAcr 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, app.id, acrPull)
+  scope: acr
+  properties: { principalId: app.identity.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPull) }
 }
 resource rEhS 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(eh.id, app.id, ehSender)
