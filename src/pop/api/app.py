@@ -8,9 +8,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -163,3 +166,14 @@ def get_readout(simulated: bool = False, metric: str = "watched_minutes",
     log = simulated_log(400, true_lift_minutes=5.0, seed=11) if simulated else LOG
     r = readout(log, metric)
     return {"simulated": simulated, **r.__dict__, "verdict": r.verdict}
+
+
+# Serve the built web app (web/dist) from the same origin in production.
+_DIST = Path(os.environ.get("POP_WEB_DIST", Path(__file__).resolve().parents[3] / "web" / "dist"))
+if _DIST.exists():
+    app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        f = _DIST / path
+        return FileResponse(f if path and f.is_file() else _DIST / "index.html")
