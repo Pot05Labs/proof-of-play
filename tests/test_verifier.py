@@ -60,3 +60,11 @@ def test_clock_minute_is_allowed_when_supplied():
     f = _fact("f1", "h0", 0.42)
     v = verify(_ins("In the 67th minute, Okafor's chance was worth 0.42.", ["f1"]), [f], _info(), minutes={67})
     assert v.ok, v.reasons
+
+
+def test_shared_surnames_do_not_cause_false_rejections():
+    info = _info()
+    info.home.squad.append(Player(player_id="h9", name="Mpho Okafor", number=9, position="FW"))
+    f = _fact("f1", "h0", 0.42)
+    assert verify(_ins("Tomas Okafor's chance was worth 0.42.", ["f1"]), [f], info).ok
+    assert not verify(_ins("Mpho Okafor's chance was worth 0.42.", ["f1"]), [f], info).ok

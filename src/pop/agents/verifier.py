@@ -57,12 +57,19 @@ def verify(insight: Insight, cited: list[Fact], info: MatchInfo, minutes: set[in
     players = {p.player_id: p for t in (info.home, info.away) for p in t.squad}
     teams = {info.home.team_id: info.home, info.away.team_id: info.away}
     text = insight.text.lower()
+    cited_players = [players[s] for s in cited_subjects if s in players]
+    cited_surnames = {p.name.split()[-1].lower() for p in cited_players}
+    cited_team_ids = {s for s in cited_subjects if s in teams}
     for pid, p in players.items():
-        surname = p.name.split()[-1].lower()
-        if re.search(rf"\b{re.escape(surname)}\b", text) and pid not in cited_subjects:
-            team_of = next((t.team_id for t in (info.home, info.away) if p in t.squad), None)
-            if team_of not in cited_subjects:
-                reasons.append(f"mentions {p.name}, who is not a subject of any cited fact")
+        if pid in cited_subjects:
+            continue
+        team_of = next((t.team_id for t in (info.home, info.away) if p in t.squad), None)
+        if team_of in cited_team_ids:
+            continue
+        full = p.name.lower()
+        surname = full.split()[-1]
+        if re.search(rf"\b{re.escape(full)}\b", text) or re.search(rf"\b{re.escape(surname)}\b", text) and surname not in cited_surnames:
+            reasons.append(f"mentions {p.name}, who is not a subject of any cited fact")
     for tid, t in teams.items():
         for label in {t.name.lower(), t.short.lower()}:
             if re.search(rf"\b{re.escape(label)}\b", text) and tid not in cited_subjects \

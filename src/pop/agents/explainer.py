@@ -56,6 +56,7 @@ def _fmt(v) -> str:
 
 TEMPLATES: dict[str, str] = {
     "goal": "Goal for {subject}.",
+    "score": "It is {value}.",
     "xg_player": "{subject}'s chance was worth {value} expected goals.",
     "xg_team": "{subject} have built {value} expected goals so far.",
     "shot_speed": "{subject}'s shot left the boot at {value} km/h.",
