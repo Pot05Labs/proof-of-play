@@ -14,6 +14,7 @@ dependencies = [
     "azure-identity>=1.26.0",
     "anthropic>=2.1.0",
     "azure-cosmos>=4.17.1",
+    "agent-framework-core>=1.22.0",
 ]
 
 [dependency-groups]
