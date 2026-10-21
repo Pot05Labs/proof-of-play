@@ -29,7 +29,7 @@ def main() -> int:
     code, out = run(["uv", "run", "ruff", "check", "src", "tests", "scripts"])
     rows.append(("Lint (ruff)", code == 0, out.splitlines()[-1] if out else "clean"))
 
-    secrets = run(["git", "grep", "-nIE", r"(AccountKey=|SharedAccessKey=|-----BEGIN|sk-[A-Za-z0-9]{20}|eyJhbGci)"])[1]
+    secrets = run(["git", "grep", "-nIE", r"(AccountKey=|SharedAccessKey=|-----BEGIN|sk-[A-Za-z0-9]{20}|eyJhbGci)", "--", ".", ":!scripts/assurance.py"])[1]
     rows.append(("No secrets in tracked files", not secrets, "none found" if not secrets else secrets[:200]))
 
     deny = ["arsenal", "chelsea", "liverpool", "tottenham", "manchester", "newcastle", "everton", "fulham",
