@@ -54,5 +54,27 @@ class FoundryLLM:
         return (r.choices[0].message.content or "").strip()
 
 
+class ChaosLLM:
+    """Demo only: makes the wrapped model invent a statistic on a set share of rewrites.
+
+    Lets the producer console show the Verifier catching a hallucination live. Never on by default.
+    """
+
+    INVENTIONS = ("his 3rd of the season", "the 7th time this month", "at 41 km/h", "a 92% success rate")
+
+    def __init__(self, inner: LLM, rate: float, seed: int = 0) -> None:
+        import random
+        self.inner, self.rate, self.rng = inner, rate, random.Random(seed)
+        self.name = f"{inner.name}+chaos"
+
+    def complete(self, system: str, user: str) -> str:
+        text = self.inner.complete(system, user)
+        if self.rng.random() < self.rate:
+            return text.rstrip(".") + ", " + self.rng.choice(self.INVENTIONS) + "."
+        return text
+
+
 def get_llm() -> LLM:
-    return FoundryLLM() if os.environ.get("POP_LLM") == "foundry" else StubLLM()
+    base: LLM = FoundryLLM() if os.environ.get("POP_LLM") == "foundry" else StubLLM()
+    rate = float(os.environ.get("POP_DEMO_CHAOS", "0") or 0)
+    return ChaosLLM(base, rate) if rate > 0 else base

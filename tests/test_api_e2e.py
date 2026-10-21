@@ -77,3 +77,25 @@ def test_events_never_run_ahead_of_the_clock(monkeypatch):
     appmod.B.seq = 10
     ev = c.get("/api/events", params={"since": 0}).json()["events"]
     assert len(ev) == 10 and ev[-1]["seq"] == 10
+
+
+def test_feed_ids_are_opaque_and_retraction_events_leak_nothing(monkeypatch):
+    c = _client(monkeypatch)
+    sid = c.post("/api/session", json={"consent": True, "mode": "analyst"}).json()["session_id"]
+    q = asyncio.Queue()
+    appmod.B.subscribers.add(q)
+    _run_match()
+    for item in c.get(f"/api/feed/{sid}").json()["insights"]:
+        assert ":" not in item["insight_id"] and len(item["insight_id"]) == 16
+    msgs = []
+    while not q.empty():
+        msgs.append(q.get_nowait())
+    retractions = [m for m in msgs if m["type"] == "retraction"]
+    assert retractions and all(set(m) == {"type", "seq"} for m in retractions)
+
+
+def test_readout_with_one_session_returns_nulls_not_500(monkeypatch):
+    c = _client(monkeypatch)
+    c.post("/api/session", json={"consent": True})
+    r = c.get("/api/readout", headers={"x-pop-key": "k"})
+    assert r.status_code == 200 and r.json()["ci_low"] is None

@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -56,20 +57,28 @@ def new_session(seed: str, *, consent: bool, mode: str = "fan", club_id: str | N
 class EngagementLog:
     sessions: dict[str, Session] = field(default_factory=dict)
     events: dict[str, list[EngagementEvent]] = field(default_factory=lambda: defaultdict(list))
+    received: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
 
     def add_session(self, s: Session) -> None:
         if s.session_id in self.sessions:
             raise ValueError("session already registered; arms are never re-assigned")
         self.sessions[s.session_id] = s
 
-    def record(self, e: EngagementEvent) -> None:
+    def record(self, e: EngagementEvent, received_s: float | None = None) -> None:
+        """Store an event with the SERVER's receive time; the client's match clock is not trusted for time."""
         if e.session_id not in self.sessions:
             raise KeyError("unknown session")
         self.events[e.session_id].append(e)
+        self.received[e.session_id].append(time.time() if received_s is None else received_s)
 
     def watched_minutes(self, session_id: str) -> float:
-        hb = {e.t_ms // 1000 // HEARTBEAT_SECONDS for e in self.events[session_id] if e.kind == "heartbeat"}
-        return len(hb) * HEARTBEAT_SECONDS / 60.0
+        """Distinct 15-second wall-clock slots in which the server received a heartbeat.
+
+        Independent of match speed, pre-kick-off waiting and client clocks; duplicates in a slot count once.
+        """
+        slots = {int(r // HEARTBEAT_SECONDS) for e, r in zip(self.events[session_id], self.received[session_id],
+                                                             strict=True) if e.kind == "heartbeat"}
+        return len(slots) * HEARTBEAT_SECONDS / 60.0
 
     def taps_per_minute(self, session_id: str) -> float:
         mins = self.watched_minutes(session_id)

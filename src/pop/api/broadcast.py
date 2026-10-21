@@ -9,6 +9,8 @@ Every viewer sees the same match on the same clock. The arm only changes the ins
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -53,6 +55,23 @@ class Broadcast:
     llm_calls: int = 0
     rejected_rewrites: int = 0
     subscribers: set[asyncio.Queue] = field(default_factory=set)
+    profiles: set[Viewer] = field(default_factory=lambda: {Viewer()})
+    id_key: str = "dev"
+
+    def register(self, session: Session) -> None:
+        """Remember each viewer profile so its insights are written live, not on request."""
+        self.profiles.add(self.viewer_of(session))
+
+    @staticmethod
+    def viewer_of(session: Session) -> Viewer:
+        if session.arm == "generic":
+            return Viewer(language=session.language)
+        return Viewer(audience=session.mode, language=session.language,
+                      club_id=session.club_id, player_id=session.player_id)
+
+    def public_id(self, insight_id: str) -> str:
+        """Opaque id for the browser: reveals nothing about audience, language, club or player."""
+        return hmac.new(self.id_key.encode(), insight_id.encode(), hashlib.sha256).hexdigest()[:16]
 
     def load(self) -> None:
         self.info, self.events = generate(self.seed, var_overturn=self.var_overturn)
@@ -71,12 +90,15 @@ class Broadcast:
                 for key, pub in list(self.cache.items()):
                     if set(pub.insight.fact_ids) & set(upd.retraction.retracted_fact_ids):
                         self.retracted_insights.add(pub.insight.insight_id)
-                self._fan_out({"type": "retraction", "retraction": upd.retraction.model_dump(),
-                               "insight_ids": sorted(self.retracted_insights)})
+                self._fan_out({"type": "retraction", "seq": ev.seq})
             for m in upd.moments:
                 self.moments.append(m)
-                if self.visible(m, Viewer(), "generic"):
-                    self.insight_for(m, Viewer())  # the broadcast version is written live
+                # every known viewer profile gets its insight written live, off the event loop,
+                # so feed freshness never depends on the arm
+                for viewer in list(self.profiles):
+                    arm = "generic" if viewer.generic and viewer.audience == "fan" else "personalised"
+                    if self.visible(m, viewer, arm):
+                        await asyncio.to_thread(self.insight_for, m, viewer)
                 self._fan_out({"type": "moment", "moment_id": m.moment_id, "importance": m.importance})
             self._fan_out({"type": "tick", "seq": ev.seq})
         self.running, self.finished = False, True
@@ -128,8 +150,7 @@ class Broadcast:
         return self.cache[key]
 
     def feed(self, session: Session) -> list[dict]:
-        viewer = Viewer(language=session.language) if session.arm == "generic" else Viewer(
-            audience=session.mode, language=session.language, club_id=session.club_id, player_id=session.player_id)
+        viewer = self.viewer_of(session)
         out = []
         for m in self.moments:
             if not self.visible(m, viewer, session.arm):
@@ -137,7 +158,7 @@ class Broadcast:
             pub = self.insight_for(m, viewer)
             if self.is_pulled(pub) or pub.insight.status == "rejected":
                 continue
-            out.append({"insight_id": pub.insight.insight_id, "minute": pub.minute, "t_ms": pub.t_ms,
+            out.append({"insight_id": self.public_id(pub.insight.insight_id), "minute": pub.minute, "t_ms": pub.t_ms,
                         "text": pub.insight.text, "fact_ids": pub.insight.fact_ids,
                         "importance": m.importance, "kind": m.kind})
         return out
@@ -153,7 +174,7 @@ class Broadcast:
                          "latency_ms": round(pub.latency_ms, 1)})
         rows.sort(key=lambda r: r["minute"])
         return {"model": self.llm.name, "llm_calls": self.llm_calls, "rejected_rewrites": self.rejected_rewrites,
-                "retracted": sum(r["retracted"] for r in rows), "insights": rows[-200:]}
+                "retracted": sum(r["retracted"] for r in rows), "total": len(rows), "insights": rows[-500:]}
 
 
 def evidence(engine: Engine, fact_ids: list[str]) -> dict[str, list[str]]:

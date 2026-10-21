@@ -42,9 +42,19 @@ def test_watched_minutes_counts_distinct_heartbeat_slots():
     log = EngagementLog()
     s = new_session("seed", consent=True)
     log.add_session(s)
-    for t in [0, 15_000, 15_000, 30_000, 45_000]:  # duplicate beat must not double count
-        log.record(EngagementEvent(session_id=s.session_id, t_ms=t, kind="heartbeat"))
+    for t in [0, 15, 15, 30, 45]:  # duplicate beat must not double count
+        log.record(EngagementEvent(session_id=s.session_id, t_ms=0, kind="heartbeat"), received_s=1_000_000 + t)
     assert log.watched_minutes(s.session_id) == pytest.approx(1.0)
+
+
+def test_watched_minutes_ignore_the_match_clock():
+    """Heartbeats before kick-off all carry t_ms=0; they must still count as real watching time."""
+    log = EngagementLog()
+    s = new_session("seed", consent=True)
+    log.add_session(s)
+    for k in range(8):
+        log.record(EngagementEvent(session_id=s.session_id, t_ms=0, kind="heartbeat"), received_s=2_000_000 + 15 * k)
+    assert log.watched_minutes(s.session_id) == pytest.approx(2.0)
 
 
 def test_readout_detects_a_planted_lift():

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 from pathlib import Path
 
@@ -26,7 +27,7 @@ app = FastAPI(title="Proof of Play")
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get("POP_CORS", "*").split(","),
                    allow_methods=["*"], allow_headers=["*"])
 
-B = Broadcast(seed=int(os.environ.get("POP_MATCH_SEED", "7")), speed=float(os.environ.get("POP_SPEED", "1")))
+B = Broadcast(id_key=os.environ.get("POP_EXPERIMENT_SEED", "dev"), seed=int(os.environ.get("POP_MATCH_SEED", "7")), speed=float(os.environ.get("POP_SPEED", "1")))
 LOG = EngagementLog()
 _task: asyncio.Task | None = None
 
@@ -95,6 +96,7 @@ def session(req: SessionReq):
     s = new_session(_seed(), consent=True, mode=req.mode, club_id=req.club_id,
                     player_id=req.player_id, language=req.language)
     LOG.add_session(s)
+    B.register(s)
     return {"session_id": s.session_id}  # the arm is never sent to the client
 
 
@@ -165,7 +167,8 @@ def get_readout(simulated: bool = False, metric: str = "watched_minutes",
     _admin(x_pop_key)
     log = simulated_log(400, true_lift_minutes=5.0, seed=11) if simulated else LOG
     r = readout(log, metric)
-    return {"simulated": simulated, **r.__dict__, "verdict": r.verdict}
+    clean = {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in r.__dict__.items()}
+    return {"simulated": simulated, **clean, "verdict": r.verdict}
 
 
 # Serve the built web app (web/dist) from the same origin in production.

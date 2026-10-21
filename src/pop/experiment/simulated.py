@@ -30,12 +30,12 @@ def simulated_log(n_sessions: int, *, true_lift_minutes: float, seed: int = 1,
         start = int(rng.uniform(0, max(1, match_minutes - minutes)) * 60)
         beats = int(minutes * 60 // HEARTBEAT_SECONDS)
         for k in range(beats):
-            log.record(EngagementEvent(session_id=sid, t_ms=(start + k * HEARTBEAT_SECONDS) * 1000,
-                                       kind="heartbeat"))
+            ts = start + k * HEARTBEAT_SECONDS
+            log.record(EngagementEvent(session_id=sid, t_ms=ts * 1000, kind="heartbeat"), received_s=ts)
         taps = rng.poisson(0.15 * minutes * (1.3 if arm == "personalised" else 1.0))
         for _ in range(taps):
-            log.record(EngagementEvent(session_id=sid, t_ms=int((start + rng.uniform(0, minutes * 60)) * 1000),
-                                       kind="why_tap"))
+            ts = start + rng.uniform(0, minutes * 60)
+            log.record(EngagementEvent(session_id=sid, t_ms=int(ts * 1000), kind="why_tap"), received_s=ts)
     return log
 
 

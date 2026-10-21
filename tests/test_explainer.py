@@ -46,3 +46,12 @@ def test_hallucinating_rewrite_falls_back_to_grounded_draft():
     assert ins.verified
     assert "4th" not in ins.text and "Brandt" not in ins.text
     assert "rejected" in ins.verifier_notes
+
+
+def test_chaos_inventions_are_always_caught():
+    from pop.agents.llm import ChaosLLM, StubLLM
+    chaos = ChaosLLM(StubLLM(), rate=1.0, seed=1)
+    for _ in range(20):
+        ins = explain(MOMENT, [FACT], _info(), llm=chaos)
+        assert ins.verified and "rejected" in ins.verifier_notes
+        assert not any(x in ins.text for x in ChaosLLM.INVENTIONS)
