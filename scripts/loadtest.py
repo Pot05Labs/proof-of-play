@@ -2,8 +2,12 @@
 
 Each viewer joins with consent, then every 2 s polls /api/state, /api/events and /api/feed (as the web app does)
 and sends a heartbeat every 15 s. Reports request latency, error rate, and how far the live match clock
-falls behind the wall clock. Simulated viewers are NOT real data: run this before the experiment seed is
-used for real sessions, or redeploy with a fresh seed afterwards.
+falls behind the wall clock.
+
+Simulated viewers are NOT real data. Only run this against a deployment whose COSMOS_CONTAINER is `loadtest`
+(check `store.container` in /api/producer first; the script refuses otherwise). Before the real watch-along,
+redeploy with cosmosContainer=watchalong and a fresh POP_EXPERIMENT_SEED: that starts a new process, so no
+simulated session survives in memory either.
 
   uv run python scripts/loadtest.py --url https://... --viewers 400 --minutes 3
 """
@@ -65,6 +69,10 @@ async def main(url: str, n: int, minutes: float, key: str | None, speed: float) 
         if key:
             await client.post("/api/admin/start", headers={"x-pop-key": key},
                               json={"seed": 7, "speed": speed, "var_overturn": True})
+        if key:
+            store = (await client.get("/api/producer", headers={"x-pop-key": key})).json().get("store") or {}
+            if store.get("container") != "loadtest":
+                raise SystemExit(f"refusing: live app writes to container {store.get('container')!r}, not 'loadtest'")
         info = (await client.get("/api/match")).json()
         clubs = [info["home"], info["away"]]
         start = time.time()

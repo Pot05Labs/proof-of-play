@@ -42,3 +42,16 @@ def test_restart_rebuilds_the_same_readout_without_rewriting():
     assert n == written and len(store.events) == written  # rehydrate never writes back
     assert {k: fresh.watched_minutes(k) for k in fresh.sessions} == {k: log.watched_minutes(k) for k in log.sessions}
     assert {k: v.arm for k, v in fresh.sessions.items()} == {k: v.arm for k, v in log.sessions.items()}
+
+
+def test_store_names_argument_then_env_then_default(monkeypatch):
+    from pop.experiment.store import resolve_names
+    monkeypatch.delenv("COSMOS_CONTAINER", raising=False)
+    monkeypatch.delenv("COSMOS_DATABASE", raising=False)
+    assert resolve_names() == ("pop", "engagement")
+    monkeypatch.setenv("COSMOS_CONTAINER", "")  # blank means unset, never an empty container name
+    assert resolve_names() == ("pop", "engagement")
+    monkeypatch.setenv("COSMOS_CONTAINER", "watchalong")
+    monkeypatch.setenv("COSMOS_DATABASE", "popx")
+    assert resolve_names() == ("popx", "watchalong")
+    assert resolve_names("d", "loadtest") == ("d", "loadtest")

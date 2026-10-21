@@ -20,24 +20,33 @@ log = logging.getLogger("pop.store")
 
 
 class CosmosStore:
-    def __init__(self, endpoint: str | None = None, database: str = "pop", container: str | None = None) -> None:
-        container = container or os.environ.get("COSMOS_CONTAINER", "engagement")
+    def __init__(self, endpoint: str | None = None, database: str | None = None, container: str | None = None) -> None:
         from azure.cosmos import CosmosClient
         from azure.identity import DefaultAzureCredential
 
+        self.database_name, self.container_name = resolve_names(database, container)
         self.client = CosmosClient(endpoint or os.environ["COSMOS_ENDPOINT"], credential=DefaultAzureCredential())
-        self.container = self.client.get_database_client(database).get_container_client(container)
-        self.q: queue.Queue[dict] = queue.Queue()
+        self.container = self.client.get_database_client(self.database_name).get_container_client(self.container_name)
+        # Fail loudly at start if the container is missing or we lack access, instead of dropping writes later.
+        self.container.read()
+        self.q: queue.Queue[dict] = queue.Queue(maxsize=50_000)
         self.written = 0
         self.failed = 0
+        self.dropped_full = 0
         threading.Thread(target=self._drain, name="cosmos-writer", daemon=True).start()
 
     # ---- sink interface used by EngagementLog ----
+    def _put(self, doc: dict) -> None:
+        try:
+            self.q.put_nowait(doc)
+        except queue.Full:  # never block a viewer's request on the database
+            self.dropped_full += 1
+
     def session(self, s: Session) -> None:
-        self.q.put({"id": f"s:{s.session_id}", "kind": "session", **s.model_dump()})
+        self._put({"id": f"s:{s.session_id}", "kind": "session", **s.model_dump()})
 
     def event(self, e: EngagementEvent, received_s: float, n: int) -> None:
-        self.q.put({"id": f"e:{e.session_id}:{n:06d}", "kind": "event", "received_s": received_s, **e.model_dump()})
+        self._put({"id": f"e:{e.session_id}:{n:06d}", "kind": "event", "received_s": received_s, **e.model_dump()})
 
     def _drain(self) -> None:
         while True:
@@ -47,11 +56,14 @@ class CosmosStore:
                     self.container.upsert_item(doc)
                     self.written += 1
                     break
-                except Exception as exc:  # noqa: BLE001 - retry any transient 429/503/network error
-                    if attempt == 5:
+                except Exception as exc:  # noqa: BLE001 - classified below
+                    permanent = getattr(exc, "status_code", None) in PERMANENT_STATUS
+                    if permanent or attempt == 5:
                         self.failed += 1
-                        log.error("cosmos write dropped after retries: %s", type(exc).__name__)
-                    time.sleep(0.2 * 2**attempt)
+                        log.error("cosmos write dropped (%s, status %s)", type(exc).__name__,
+                                  getattr(exc, "status_code", None))
+                        break
+                    time.sleep(0.2 * 2**attempt)  # transient: 408/429/449/5xx/network
             self.q.task_done()
 
     def flush(self, timeout: float = 10.0) -> bool:
@@ -72,7 +84,17 @@ class CosmosStore:
         return sessions, [(e, r) for e, r, _ in events]
 
     def stats(self) -> dict:
-        return {"written": self.written, "failed": self.failed, "pending": self.q.qsize()}
+        return {"database": self.database_name, "container": self.container_name, "written": self.written,
+                "failed": self.failed, "dropped_queue_full": self.dropped_full, "pending": self.q.qsize()}
+
+
+PERMANENT_STATUS = {400, 401, 403, 404, 409, 413}
+
+
+def resolve_names(database: str | None = None, container: str | None = None) -> tuple[str, str]:
+    """Argument wins, then environment, then default. An empty value counts as unset."""
+    return (database or os.environ.get("COSMOS_DATABASE") or "pop",
+            container or os.environ.get("COSMOS_CONTAINER") or "engagement")
 
 
 _SYSTEM = {"id", "kind", "received_s", "_rid", "_self", "_etag", "_attachments", "_ts", "ttl"}

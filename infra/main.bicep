@@ -11,6 +11,11 @@ param modelVersion string = '2025-04-14'
 param modelCapacity int = 50
 @description('Container image for the API + web app (set after the first ACR build)')
 param image string = 'mcr.microsoft.com/k8se/quickstart:latest'
+@description('Cosmos container the live app writes engagement to. Use a fresh one for the real watch-along.')
+@allowed([ 'engagement', 'loadtest', 'watchalong' ])
+param cosmosContainer string = 'watchalong'
+@description('Rate limit: session joins per client address per minute')
+param joinPerMinute int = 30
 @secure()
 param adminKey string
 @secure()
@@ -95,17 +100,18 @@ resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   properties: { resource: { id: 'pop' } }
 }
 
-resource sessions 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
+// One container per purpose, so load tests and the real watch-along never share data.
+resource containers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = [for c in [ 'engagement', 'loadtest', 'watchalong' ]: {
   parent: db
-  name: 'engagement'
+  name: c
   properties: {
     resource: {
-      id: 'engagement'
+      id: c
       partitionKey: { paths: [ '/session_id' ], kind: 'Hash' }
-      defaultTtl: 2592000 // 30 days: the watch-along log deletes itself after judging
+      defaultTtl: 2592000 // 30 days: the log deletes itself after judging
     }
   }
-}
+}]
 
 resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: '${name}-env'
@@ -146,6 +152,9 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'AZURE_AI_PROJECT_ENDPOINT', value: foundry.properties.endpoints['OpenAI Language Model Instance API'] }
             { name: 'AZURE_AI_MODEL_DEPLOYMENT', value: model.name }
             { name: 'COSMOS_ENDPOINT', value: cosmos.properties.documentEndpoint }
+            { name: 'COSMOS_DATABASE', value: 'pop' }
+            { name: 'COSMOS_CONTAINER', value: cosmosContainer }
+            { name: 'POP_JOIN_PER_MIN', value: string(joinPerMinute) }
             { name: 'EVENTHUB_NAMESPACE', value: '${eh.name}.servicebus.windows.net' }
             { name: 'POP_ADMIN_KEY', secretRef: 'admin-key' }
             { name: 'POP_EXPERIMENT_SEED', secretRef: 'experiment-seed' }
