@@ -31,6 +31,11 @@ AUDIENCES
   about (the score, a speed, a share of possession). Warm and clear, never condescending.
 - generic (no audience, club or player given): neutral broadcast voice, the clearest version of the DRAFT.
 
+RECAPS
+- When the angle starts with recap_half_time or recap_full_time, write a recap instead of a moment: up to three
+  sentences and at most 60 words, giving the score first and then the clearest story the FACTS support. The
+  grounding rules above still apply to every word.
+
 PERSONALISATION
 - If FAVOURITE_CLUB is given and the moment involves that club, frame the sentence from their supporters' point of
   view ("for Harbour Rovers fans", "your side"). If the moment is about the opponent, say what it means for the

@@ -116,3 +116,27 @@ def test_forged_forwarded_for_cannot_dodge_the_join_limit(monkeypatch):
     codes = [c.post("/api/session", json={"consent": True},
                     headers={"x-forwarded-for": f"1.2.3.{i}, 9.9.9.9"}).status_code for i in range(4)]
     assert codes == [200, 200, 429, 429]
+
+
+def test_recaps_overlays_and_agent_trace(monkeypatch):
+    c = _client(monkeypatch)
+    c.get("/api/match")
+    _run_match()
+    b = appmod.B
+    recaps = [m for m in b.moments if m.kind in ("recap_half_time", "recap_full_time")]
+    assert [m.kind for m in recaps] == ["recap_half_time", "recap_full_time"]
+    for m in recaps:  # recaps cite only facts the engine still stands behind
+        assert m.facts and not any(b.engine.facts.is_retracted(f) for f in m.facts)
+    ft_score = b.engine.facts.get(recaps[-1].facts[0])
+    assert ft_score.kind == "score" and ft_score.value == f"{b.engine.state().score[b.info.home.team_id]}-" \
+        f"{b.engine.state().score[b.info.away.team_id]}"  # the corrected score after the VAR overturn
+
+    ov = c.get("/api/overlays").json()["overlays"]
+    assert ov and all(o["hide_at_t_ms"] > o["show_at_t_ms"] for o in ov)
+    assert {o["slot"] for o in ov} <= {"lower_third", "corner", "full"}
+    assert any(o["template"] == "recap_card" for o in ov)
+    assert all(":" not in o["insight_id"] for o in ov)  # opaque ids here too
+
+    prod = c.get("/api/producer", headers={"x-pop-key": "k"}).json()
+    traced = [r for r in prod["insights"] if r["trace"]]
+    assert traced and {"Interpreter", "Verifier"} <= {s["agent"] for s in traced[0]["trace"]}

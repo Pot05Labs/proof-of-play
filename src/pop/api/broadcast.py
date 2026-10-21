@@ -18,8 +18,9 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from pop.agents.explainer import Viewer, explain
+from pop.agents.explainer import Viewer
 from pop.agents.llm import LLM, get_llm
+from pop.agents.orchestrator import TraceStep, run_moment
 from pop.engine import Engine
 from pop.schema import Fact, Insight, MatchEvent, MatchInfo, Moment, Session
 from pop.sim.match import generate
@@ -37,6 +38,22 @@ class Published:
     t_ms: int
     minute: int
     latency_ms: float
+    trace: list[TraceStep] = field(default_factory=list)
+
+
+GENERIC_SESSION = Session(session_id="broadcast", started_at="", arm="generic", assignment_seed="", consent=True)
+
+RECAP_KINDS = {"recap_half_time", "recap_full_time"}
+# Overlay timing and placement by moment kind: (slot, template, on-screen milliseconds)
+OVERLAY_STYLE = {
+    "goal": ("full", "goal_card", 10_000),
+    "recap_half_time": ("full", "recap_card", 20_000),
+    "recap_full_time": ("full", "recap_card", 20_000),
+    "var_overturn": ("lower_third", "var_card", 10_000),
+    "big_chance": ("lower_third", "chance_card", 8_000),
+    "rocket_shot": ("corner", "speed_card", 6_000),
+}
+DEFAULT_STYLE = ("lower_third", "insight_card", 8_000)
 
 
 @dataclass
@@ -93,6 +110,29 @@ class Broadcast:
         club = viewer.club_id if viewer.club_id and self._relevant(m, Viewer(club_id=viewer.club_id)) else None
         return Viewer(audience=viewer.audience, language=viewer.language, club_id=club, player_id=player)
 
+    def _recap(self, ev: MatchEvent) -> Moment | None:
+        """Half-time and full-time recap built only from facts the engine has already asserted and not retracted."""
+        active = [f for f in self.engine.facts.active()]
+        score = [f for f in active if f.kind == "score"]
+        if not score:
+            return None
+        chosen = [score[-1].fact_id]
+        for team in (self.info.home.team_id, self.info.away.team_id):
+            xg = [f for f in active if f.kind == "xg_team" and f.subject_id == team]
+            if xg:
+                chosen.append(xg[-1].fact_id)
+        top = sorted((m for m in self.moments if m.kind not in RECAP_KINDS
+                      and not self.engine.moments.is_retracted(m.moment_id)),
+                     key=lambda m: m.importance, reverse=True)[:2]
+        for m in top:
+            for fid in m.facts:
+                f = self.engine.facts.get(fid)
+                if f and f.kind not in ("score", "xg_team") and fid not in chosen and not self.engine.facts.is_retracted(fid):
+                    chosen.append(fid)
+        kind = "recap_half_time" if ev.type.value == "half_time" else "recap_full_time"
+        return Moment(moment_id=f"{self.info.match_id}:R{ev.seq:05d}:{kind}", seq_at=ev.seq, kind=kind,
+                      importance=1.0, facts=chosen[:7])
+
     def _enqueue(self, m: Moment, viewer: Viewer, arm: str) -> None:
         ev = self.effective(m, viewer, arm)
         key = (m.moment_id, ev)
@@ -143,7 +183,12 @@ class Broadcast:
                     if set(pub.insight.fact_ids) & set(upd.retraction.retracted_fact_ids):
                         self.retracted_insights.add(pub.insight.insight_id)
                 self._fan_out({"type": "retraction", "seq": ev.seq})
-            for m in upd.moments:
+            new_moments = list(upd.moments)
+            if ev.type.value in ("half_time", "full_time"):
+                recap = self._recap(ev)
+                if recap is not None:
+                    new_moments.append(recap)
+            for m in new_moments:
                 self.moments.append(m)
                 # Insights are queued, never awaited here: the match clock does not wait for a model.
                 # Generic and personalised jobs are shuffled together so neither arm is reliably fresher.
@@ -186,6 +231,8 @@ class Broadcast:
         return False
 
     def visible(self, m: Moment, viewer: Viewer, arm: str) -> bool:
+        if m.kind in RECAP_KINDS:
+            return True
         if self.engine.moments.is_retracted(m.moment_id):
             return False
         kinds = {f.kind for f in self.facts_of(m)}
@@ -204,8 +251,8 @@ class Broadcast:
         facts = self.facts_of(m)
         ev = self.events[m.seq_at - 1]
         t0 = time.perf_counter()
-        ins = explain(m, facts, self.info, viewer, llm=self.llm, minute=ev.clock.minute)
-        pub = Published(ins, m.seq_at, ev.t_ms, ev.clock.minute, (time.perf_counter() - t0) * 1000)
+        ins, trace = run_moment(m, facts, self.info, viewer, llm=self.llm, minute=ev.clock.minute)
+        pub = Published(ins, m.seq_at, ev.t_ms, ev.clock.minute, (time.perf_counter() - t0) * 1000, trace)
         with self.lock:
             if key not in self.cache:
                 self.cache[key] = pub
@@ -243,7 +290,9 @@ class Broadcast:
                          "retracted": self.is_pulled(pub),
                          "audience": viewer.audience, "language": viewer.language,
                          "club": viewer.club_id, "player": viewer.player_id,
-                         "latency_ms": round(pub.latency_ms, 1)})
+                         "latency_ms": round(pub.latency_ms, 1),
+                         "kind": next((m.kind for m in self.moments if m.moment_id == mid), None),
+                         "trace": [t.model_dump() for t in pub.trace]})
         rows.sort(key=lambda r: r["minute"])
         lag = sorted(self.lag_ms)
         usage = getattr(self.llm, "usage", None)
@@ -255,6 +304,27 @@ class Broadcast:
                 "write_lag_ms_p95": round(lag[int(len(lag) * 0.95)], 1) if lag else None,
                 "usage": usage.as_dict() if usage else None,
                 "insights": rows[-500:]}
+
+
+def overlays(b: Broadcast, items: list[dict]) -> list[dict]:
+    """Timed, machine-readable overlays for a graphics renderer, one per published insight.
+
+    show/hide are in match milliseconds (t_ms), so a renderer can sync them to the feed it is playing.
+    """
+    out = []
+    for it in items:
+        slot, template, dur = OVERLAY_STYLE.get(it["kind"], DEFAULT_STYLE)
+        facts = [b.engine.facts.get(f) for f in it["fact_ids"]]
+        metric = next(({"kind": f.kind, "value": f.value, "unit": f.unit} for f in facts
+                       if f is not None and isinstance(f.value, (int, float)) and f.kind != "score"), None)
+        teams = {f.subject_id for f in facts if f is not None}
+        colour = (b.info.home.colour if b.info.home.team_id in teams else
+                  b.info.away.colour if b.info.away.team_id in teams else None)
+        out.append({"overlay_id": it["insight_id"], "insight_id": it["insight_id"], "show_at_t_ms": it["t_ms"],
+                    "hide_at_t_ms": it["t_ms"] + dur, "slot": slot, "template": template,
+                    "payload": {"minute": it["minute"], "text": it["text"], "kind": it["kind"], "metric": metric,
+                                "team_colour": colour, "evidence_facts": len(it["fact_ids"])}})
+    return out
 
 
 def evidence(engine: Engine, fact_ids: list[str]) -> dict[str, list[str]]:

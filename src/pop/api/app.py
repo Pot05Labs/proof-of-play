@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from pop.api.broadcast import Broadcast, evidence
+from pop.api.broadcast import GENERIC_SESSION, Broadcast, evidence, overlays
 from pop.experiment.core import EngagementLog, new_session, readout
 from pop.experiment.simulated import simulated_log
 from pop.schema import EngagementEvent, EngagementKind
@@ -192,6 +192,21 @@ def feed(session_id: str):
     if not s:
         raise HTTPException(404, "unknown session")
     return {"seq": B.seq, "t_ms": B.t_ms, "insights": B.feed(s)}
+
+
+@app.get("/api/overlays")
+def broadcast_overlays(since_t_ms: int = 0):
+    """The generic broadcast's timed overlays, as a graphics engine would consume them."""
+    items = B.feed(GENERIC_SESSION) if B.engine else []
+    return {"t_ms": B.t_ms, "overlays": [o for o in overlays(B, items) if o["hide_at_t_ms"] >= since_t_ms]}
+
+
+@app.get("/api/overlays/{session_id}")
+def session_overlays(session_id: str, since_t_ms: int = 0):
+    s = LOG.sessions.get(session_id)
+    if not s:
+        raise HTTPException(404, "unknown session")
+    return {"t_ms": B.t_ms, "overlays": [o for o in overlays(B, B.feed(s)) if o["hide_at_t_ms"] >= since_t_ms]}
 
 
 @app.get("/api/evidence")
