@@ -13,16 +13,11 @@ import json
 from dataclasses import dataclass
 
 from pop.agents.llm import LLM, StubLLM
+from pop.agents.style_guide import STYLE_GUIDE
 from pop.agents.verifier import verify
 from pop.schema import Audience, Fact, Insight, MatchInfo, Moment
 
-SYSTEM = (
-    "You are a football studio writer. Rewrite the DRAFT for the AUDIENCE using ONLY the FACTS given. "
-    "Do not add any number, player, team or claim that is not in the FACTS. Keep it under 35 words. "
-    "Analysts want the numbers and the tactical reason. Casual fans want the story in plain words. "
-    "If a favourite club or player is given, frame the sentence from their point of view. "
-    "Write in the requested LANGUAGE. Return only the sentence."
-)
+SYSTEM = STYLE_GUIDE
 
 
 @dataclass(frozen=True)
@@ -96,6 +91,7 @@ def explain(moment: Moment, facts: list[Fact], info: MatchInfo, viewer: Viewer =
         "language": viewer.language,
         "favourite_club": names.get(viewer.club_id) if viewer.club_id else None,
         "favourite_player": names.get(viewer.player_id) if viewer.player_id else None,
+        "minute": minute,
     }
     text = llm.complete(SYSTEM, json.dumps(payload, ensure_ascii=False)) or draft
     ins = Insight(
