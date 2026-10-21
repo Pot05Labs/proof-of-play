@@ -67,6 +67,8 @@ Event `type` values and required `meta`:
 - `substitution` `{player_out_id, player_in_id}`
 - `var_review` `{subject_event_id, check}` then `var_decision` `{subject_event_id, decision: stands|overturned, reason}`; an overturned goal must be removed from the score and every fact or insight built on it must be retracted downstream
 
+**Speed and distance (challenge section ii).** `pass` and `shot` carry `meta.ball_speed_kmh` (shots 40..130, passes 15..90, consistent with length). `carry` carries `meta.player_speed_kmh`. Every 60 s of match time the simulator emits one `player_tracking` event per player on the pitch with `meta {distance_m_total, top_speed_kmh, sprints}` so the engine can raise threshold-triggered player tags (e.g. top speed over 33 km/h, 10 km covered).
+
 The simulator also writes a `match.json` with teams, squads (fictional names, shirt numbers, positions), tactical style per team and the seed.
 
 ## 3. Engine outputs (`pop.engine`)
@@ -121,3 +123,22 @@ docs/{SPEC.md, PREREG.md, ARCHITECTURE.md, ASSURANCE.md}
 infra/          Bicep for Azure
 ```
 Python 3.12, `uv`, `pytest`, `ruff`. Frontend: Vite + React + TypeScript.
+
+## 8. Traceability to the challenge brief
+
+| Brief requirement | Where it lives |
+|---|---|
+| (i a) Ingest synthetic events as they happen | `pop.sim` streams at real or accelerated speed into `pop.stream` (Event Hubs in cloud) |
+| (i b) Interpret into stats, patterns, context | `pop.engine` State and Facts |
+| (i c) Explain why a moment matters | Moments with importance, Explainer agent, "why?" panel |
+| (i d) Render on screen beside the match | `pop.render` timed Overlay JSON, viewer app |
+| (i e) Personalise: analyst vs casual, club, player mode, language | viewer modes, Personaliser agent |
+| (ii) Player identification with speed and distance thresholds | `player_tracking` events, engine threshold tags |
+| (ii) Pass quality: distance, accuracy, difficulty | engine pass metrics |
+| (ii) Speed: ball speed, shot speed | `meta.ball_speed_kmh`, engine facts |
+| (ii) Auto-eventing from video | stretch goal only, not core |
+| (iii) Narratives, player context, milestones, recaps | Explainer agent, recap at half and full time |
+| (iv) Explainability: control vs chaos, pressure shifts, rhythm | engine indices, Moment kinds |
+| (v) Data innovation: create or extend synthetic dataset | `pop.sim` with team styles, seeded, documented |
+| (vi) Multi-language storytelling | Translator and Speech, at least English, isiZulu, Kiswahili, Spanish |
+| Our addition: proof that personalisation works | `pop.experiment` holdout and live readout |

@@ -25,6 +25,7 @@ class EventType(str, Enum):
     SUBSTITUTION = "substitution"
     VAR_REVIEW = "var_review"
     VAR_DECISION = "var_decision"
+    PLAYER_TRACKING = "player_tracking"
 
 
 Outcome = Literal["success", "fail", "goal", "saved", "off_target", "blocked", "won", "lost"]
