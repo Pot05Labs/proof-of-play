@@ -77,7 +77,7 @@ class FoundryLLM:
         from azure.identity import DefaultAzureCredential, get_bearer_token_provider
         from openai import AzureOpenAI
 
-        self.deployment = os.environ.get("AZURE_AI_MODEL_DEPLOYMENT", "gpt-5-mini")
+        self.deployment = os.environ.get("AZURE_AI_MODEL_DEPLOYMENT", "gpt-4.1-mini")
         self.name = f"foundry:{self.deployment}"
         self.reasoning = self.deployment.startswith(("gpt-5", "o"))
         self.client = AzureOpenAI(
