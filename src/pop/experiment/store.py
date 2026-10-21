@@ -20,7 +20,8 @@ log = logging.getLogger("pop.store")
 
 
 class CosmosStore:
-    def __init__(self, endpoint: str | None = None, database: str = "pop", container: str = "engagement") -> None:
+    def __init__(self, endpoint: str | None = None, database: str = "pop", container: str | None = None) -> None:
+        container = container or os.environ.get("COSMOS_CONTAINER", "engagement")
         from azure.cosmos import CosmosClient
         from azure.identity import DefaultAzureCredential
 
