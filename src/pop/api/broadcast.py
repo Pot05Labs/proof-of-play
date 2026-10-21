@@ -11,6 +11,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import logging
+import os
+import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -57,10 +60,57 @@ class Broadcast:
     subscribers: set[asyncio.Queue] = field(default_factory=set)
     profiles: set[Viewer] = field(default_factory=lambda: {Viewer()})
     id_key: str = "dev"
+    workers: int = int(os.environ.get("POP_WORKERS", "8"))
+    queue: asyncio.Queue | None = None
+    queued: set[tuple] = field(default_factory=set)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    lag_ms: list[float] = field(default_factory=list)
 
     def register(self, session: Session) -> None:
-        """Remember each viewer profile so its insights are written live, not on request."""
-        self.profiles.add(self.viewer_of(session))
+        """Remember each viewer profile so its insights are written live, not on request.
+
+        A viewer who joins mid-match gets the recent moments written for their profile too.
+        """
+        v = self.viewer_of(session)
+        new = v not in self.profiles
+        self.profiles.add(v)
+        if new and self.queue is not None:
+            arm = "personalised" if session.arm == "personalised" else "generic"
+            for m in self.moments[-12:]:
+                if self.visible(m, v, arm):
+                    self._enqueue(m, v, arm)
+
+    def effective(self, m: Moment, viewer: Viewer, arm: str) -> Viewer:
+        """Collapse a profile to what actually changes this moment's sentence.
+
+        Club and player framing only count when the moment is about that club or player, so many
+        viewer profiles share one model call per moment.
+        """
+        if arm == "generic":
+            return Viewer(language=viewer.language)
+        subjects = {f.subject_id for f in self.facts_of(m)}
+        player = viewer.player_id if viewer.player_id in subjects else None
+        club = viewer.club_id if viewer.club_id and self._relevant(m, Viewer(club_id=viewer.club_id)) else None
+        return Viewer(audience=viewer.audience, language=viewer.language, club_id=club, player_id=player)
+
+    def _enqueue(self, m: Moment, viewer: Viewer, arm: str) -> None:
+        ev = self.effective(m, viewer, arm)
+        key = (m.moment_id, ev)
+        if key in self.cache or key in self.queued:
+            return
+        self.queued.add(key)
+        self.queue.put_nowait((m, ev, time.perf_counter()))
+
+    async def _worker(self) -> None:
+        while True:
+            m, v, t_in = await self.queue.get()
+            try:
+                await asyncio.to_thread(self.insight_for, m, v)
+                self.lag_ms.append((time.perf_counter() - t_in) * 1000)
+            except Exception:  # a failed write must never kill the worker
+                logging.getLogger("pop.broadcast").exception("insight write failed")
+            finally:
+                self.queue.task_done()
 
     @staticmethod
     def viewer_of(session: Session) -> Viewer:
@@ -83,6 +133,8 @@ class Broadcast:
         if self.info is None:
             self.load()
         self.running = True
+        self.queue, self.queued, self.lag_ms = asyncio.Queue(), set(), []
+        pool = [asyncio.create_task(self._worker()) for _ in range(self.workers)]
         async for ev in astream(self.events, self.speed):
             upd = self.engine.ingest(ev)
             self.seq, self.t_ms = ev.seq, ev.t_ms
@@ -93,14 +145,21 @@ class Broadcast:
                 self._fan_out({"type": "retraction", "seq": ev.seq})
             for m in upd.moments:
                 self.moments.append(m)
-                # every known viewer profile gets its insight written live, off the event loop,
-                # so feed freshness never depends on the arm
+                # Insights are queued, never awaited here: the match clock does not wait for a model.
+                # Generic and personalised jobs are shuffled together so neither arm is reliably fresher.
+                jobs = []
                 for viewer in list(self.profiles):
                     arm = "generic" if viewer.generic and viewer.audience == "fan" else "personalised"
                     if self.visible(m, viewer, arm):
-                        await asyncio.to_thread(self.insight_for, m, viewer)
+                        jobs.append((viewer, arm))
+                jobs.sort(key=lambda j: hashlib.sha256(repr((m.moment_id, j[0])).encode()).digest())
+                for viewer, arm in jobs:
+                    self._enqueue(m, viewer, arm)
                 self._fan_out({"type": "moment", "moment_id": m.moment_id, "importance": m.importance})
             self._fan_out({"type": "tick", "seq": ev.seq})
+        await self.queue.join()
+        for t in pool:
+            t.cancel()
         self.running, self.finished = False, True
         self._fan_out({"type": "finished"})
 
@@ -137,25 +196,36 @@ class Broadcast:
         return m.importance >= BROADCAST_FLOOR
 
     def insight_for(self, m: Moment, viewer: Viewer) -> Published:
+        """Write (or return) the insight for one moment and one collapsed profile. Runs in a worker thread."""
         key = (m.moment_id, viewer)
-        if key not in self.cache:
-            facts = self.facts_of(m)
-            ev = self.events[m.seq_at - 1]
-            t0 = time.perf_counter()
-            ins = explain(m, facts, self.info, viewer, llm=self.llm, minute=ev.clock.minute)
-            self.llm_calls += 1
-            self.rejected_rewrites += "rejected" in ins.verifier_notes
-            self.cache[key] = Published(ins, m.seq_at, ev.t_ms, ev.clock.minute,
-                                        (time.perf_counter() - t0) * 1000)
-        return self.cache[key]
+        with self.lock:
+            if key in self.cache:
+                return self.cache[key]
+        facts = self.facts_of(m)
+        ev = self.events[m.seq_at - 1]
+        t0 = time.perf_counter()
+        ins = explain(m, facts, self.info, viewer, llm=self.llm, minute=ev.clock.minute)
+        pub = Published(ins, m.seq_at, ev.t_ms, ev.clock.minute, (time.perf_counter() - t0) * 1000)
+        with self.lock:
+            if key not in self.cache:
+                self.cache[key] = pub
+                self.llm_calls += 1
+                self.rejected_rewrites += "rejected" in ins.verifier_notes
+            return self.cache[key]
 
     def feed(self, session: Session) -> list[dict]:
+        """Only insights already written. A feed request never waits on a model."""
         viewer = self.viewer_of(session)
         out = []
         for m in self.moments:
             if not self.visible(m, viewer, session.arm):
                 continue
-            pub = self.insight_for(m, viewer)
+            with self.lock:
+                pub = self.cache.get((m.moment_id, self.effective(m, viewer, session.arm)))
+            if pub is None:
+                if self.queue is not None:
+                    continue
+                pub = self.insight_for(m, self.effective(m, viewer, session.arm))  # offline/tests only
             if self.is_pulled(pub) or pub.insight.status == "rejected":
                 continue
             out.append({"insight_id": self.public_id(pub.insight.insight_id), "minute": pub.minute, "t_ms": pub.t_ms,
@@ -165,7 +235,9 @@ class Broadcast:
 
     def producer_view(self) -> dict:
         rows = []
-        for (mid, viewer), pub in self.cache.items():
+        with self.lock:
+            items = list(self.cache.items())
+        for (mid, viewer), pub in items:
             rows.append({"insight_id": pub.insight.insight_id, "minute": pub.minute, "text": pub.insight.text,
                          "verified": pub.insight.verified, "notes": pub.insight.verifier_notes,
                          "retracted": self.is_pulled(pub),
@@ -173,8 +245,16 @@ class Broadcast:
                          "club": viewer.club_id, "player": viewer.player_id,
                          "latency_ms": round(pub.latency_ms, 1)})
         rows.sort(key=lambda r: r["minute"])
+        lag = sorted(self.lag_ms)
+        usage = getattr(self.llm, "usage", None)
         return {"model": self.llm.name, "llm_calls": self.llm_calls, "rejected_rewrites": self.rejected_rewrites,
-                "retracted": sum(r["retracted"] for r in rows), "total": len(rows), "insights": rows[-500:]}
+                "retracted": sum(r["retracted"] for r in rows), "total": len(rows),
+                "queue_depth": self.queue.qsize() if self.queue else 0,
+                "profiles": len(self.profiles),
+                "write_lag_ms_p50": round(lag[len(lag) // 2], 1) if lag else None,
+                "write_lag_ms_p95": round(lag[int(len(lag) * 0.95)], 1) if lag else None,
+                "usage": usage.as_dict() if usage else None,
+                "insights": rows[-500:]}
 
 
 def evidence(engine: Engine, fact_ids: list[str]) -> dict[str, list[str]]:
