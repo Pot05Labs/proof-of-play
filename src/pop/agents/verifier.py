@@ -12,7 +12,16 @@ from dataclasses import dataclass
 
 from pop.schema import Fact, Insight, MatchInfo
 
-_NUM = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)(?:\s?%)?")
+# Thousands written with a comma or (non-breaking) space are one number: "10,000" and "10 000" mean 10000.
+# The style guide reserves the full stop for decimals, so a comma followed by exactly three digits is grouping.
+_NUM = re.compile(r"(?<![\w.])(\d{1,3}(?:[,\u00a0\u202f ]\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)(?:\s?%)?")
+_GROUPED = re.compile(r"^\d{1,3}(?:[,\u00a0\u202f ]\d{3})+(?:\.\d+)?$")
+
+
+def _normalise(raw: str) -> str:
+    if _GROUPED.match(raw):
+        return re.sub(r"[,\u00a0\u202f ]", "", raw)
+    return raw.replace(",", ".")
 # Numbers allowed without a fact: ordinals and small counting words rendered as digits are not used;
 # we only whitelist match-clock minutes that appear in fact windows or seq-derived minutes.
 
@@ -49,7 +58,7 @@ def verify(insight: Insight, cited: list[Fact], info: MatchInfo, minutes: set[in
 
     allowed = _fact_numbers(cited) | {str(m) for m in (minutes or set())}
     for raw in _NUM.findall(insight.text):
-        n = raw.replace(",", ".")
+        n = _normalise(raw)
         if n not in allowed and str(round(float(n))) not in allowed:
             reasons.append(f"number {raw} is not in the cited facts")
 

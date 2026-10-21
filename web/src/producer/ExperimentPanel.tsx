@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type Metric, type Readout } from '../lib/api';
-import { intervalScale, isNum } from './interval';
+import { fixed, intervalScale, isNum, signed, tooFewSessions } from './interval';
 
 const READOUT_MS = 5000;
 
@@ -22,8 +22,8 @@ function useReadout(key: string, metric: Metric, simulated: boolean): Result {
         .then((r) => alive && setRes({ kind: 'ok', r }))
         .catch((e: unknown) => {
           if (!alive) return;
-          // The API cannot serialise its own "too few sessions" readout (NaN means), so a 500 on
-          // real data means fewer than two sessions in an arm. See the report.
+          // Older API builds could not serialise a "too few sessions" readout (NaN means) and
+          // returned 500. Current builds return 200 with nulls, handled in ReadoutBlock.
           if (e instanceof ApiError && e.status === 500 && !simulated) setRes({ kind: 'too_few' });
           else setRes({ kind: 'error', message: e instanceof Error ? e.message : 'Readout failed' });
         });
@@ -37,13 +37,15 @@ function useReadout(key: string, metric: Metric, simulated: boolean): Result {
   return res;
 }
 
+const levelPct = (level: number | null | undefined) => (isNum(level) ? `${Math.round(level * 100)}%` : '95%');
+
 function IntervalBar({ r, unit, digits }: { r: Readout; unit: string; digits: number }) {
   const W = 440, L = 22, R = 418;
   const s = intervalScale([r.ci_low, r.ci_high, r.diff], L, R);
   const has = isNum(r.ci_low) && isNum(r.ci_high);
-  const fmt = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(digits)}`;
+  const fmt = (v: number) => signed(v, digits);
   const desc = has && isNum(r.diff)
-    ? `Difference ${fmt(r.diff)} ${unit}, ${Math.round(r.level * 100)}% interval ${fmt(r.ci_low!)} to ${fmt(r.ci_high!)}.`
+    ? `Difference ${fmt(r.diff)} ${unit}, ${levelPct(r.level)} interval ${fmt(r.ci_low!)} to ${fmt(r.ci_high!)}.`
     : 'No interval yet.';
   return (
     <svg className="interval" viewBox={`0 0 ${W} 112`} role="img" aria-label={desc}>
@@ -80,7 +82,7 @@ function ReadoutBlock({ pkey, metric, title, unit, digits, simulated }: {
   pkey: string; metric: Metric; title: string; unit: string; digits: number; simulated: boolean;
 }) {
   const res = useReadout(pkey, metric, simulated);
-  const mean = (v: number | null) => (isNum(v) ? v.toFixed(digits) : '–');
+  const mean = (v: number | null) => fixed(v, digits);
   return (
     <div className="readout">
       <h3>{title}</h3>
@@ -89,10 +91,19 @@ function ReadoutBlock({ pkey, metric, title, unit, digits, simulated }: {
       {res.kind === 'too_few' && (
         <>
           <p className="verdict">Not enough sessions yet.</p>
-          <p className="verdict-note">Shown by the console: the server returned no readout because an arm has fewer than two sessions.</p>
+          <p className="verdict-note">The server returned no readout because an arm has fewer than two sessions.</p>
         </>
       )}
-      {res.kind === 'ok' && (
+      {res.kind === 'ok' && tooFewSessions(res.r) && (
+        <>
+          <p className="verdict">Not enough sessions yet.</p>
+          <p className="verdict-note">
+            {res.r.n_personalised} personalised and {res.r.n_generic} generic sessions so far. Each arm needs at
+            least two before the console can draw an interval.
+          </p>
+        </>
+      )}
+      {res.kind === 'ok' && !tooFewSessions(res.r) && (
         <>
           <div className="arms">
             <div className="arm">
@@ -107,16 +118,16 @@ function ReadoutBlock({ pkey, metric, title, unit, digits, simulated }: {
             </div>
             <div className="arm">
               <div className="k">Difference</div>
-              <div className="n">{isNum(res.r.diff) ? `${res.r.diff > 0 ? '+' : ''}${res.r.diff.toFixed(digits)}` : '–'}</div>
+              <div className="n">{signed(res.r.diff, digits)}</div>
               <div className="s">
                 {isNum(res.r.ci_low) && isNum(res.r.ci_high)
-                  ? `${Math.round(res.r.level * 100)}%: ${res.r.ci_low.toFixed(digits)} to ${res.r.ci_high.toFixed(digits)}`
+                  ? `${levelPct(res.r.level)}: ${fixed(res.r.ci_low, digits)} to ${fixed(res.r.ci_high, digits)}`
                   : 'no interval'}
               </div>
             </div>
           </div>
           <IntervalBar r={res.r} unit={unit} digits={digits} />
-          <p className="verdict">{res.r.verdict}</p>
+          {res.r.verdict && <p className="verdict">{res.r.verdict}</p>}
         </>
       )}
     </div>

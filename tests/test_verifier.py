@@ -68,3 +68,19 @@ def test_shared_surnames_do_not_cause_false_rejections():
     f = _fact("f1", "h0", 0.42)
     assert verify(_ins("Tomas Okafor's chance was worth 0.42.", ["f1"]), [f], info).ok
     assert not verify(_ins("Mpho Okafor's chance was worth 0.42.", ["f1"]), [f], info).ok
+
+
+def test_thousands_separators_are_one_number():
+    f = _fact("f1", "h0", 10000.0, kind="player_distance_milestone")
+    for text in ("Tomas Okafor has covered 10,000 metres.", "Tomas Okafor has covered 10 000 metres.",
+                 "Tomas Okafor has covered 10 000 metres.", "Tomas Okafor has covered 10000 metres."):
+        assert verify(_ins(text, ["f1"]), [f], _info()).ok, text
+    assert not verify(_ins("Tomas Okafor has covered 12,000 metres.", ["f1"]), [f], _info()).ok
+    g = _fact("g1", "h0", 0.42)
+    assert verify(_ins("Tomas Okafor: 0,42 expected goals.", ["g1"]), [g], _info()).ok  # comma decimal still read
+
+
+def test_template_writes_whole_numbers_cleanly():
+    from pop.agents.explainer import template_draft
+    f = _fact("f1", "h0", 10000.0, kind="player_distance_milestone")
+    assert "10000 metres" in template_draft([f], _info()) and "10000.0" not in template_draft([f], _info())

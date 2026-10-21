@@ -27,3 +27,25 @@ describe('intervalScale', () => {
     expect(s.x(1000)).toBe(100);
   });
 });
+
+import { fixed, signed, tooFewSessions } from './interval';
+
+describe('readout null safety', () => {
+  it('formats nulls and NaN as a dash', () => {
+    expect(signed(null, 1)).toBe('-');
+    expect(signed(NaN, 1)).toBe('-');
+    expect(fixed(null, 2)).toBe('-');
+    expect(signed(0.04, 2)).toBe('+0.04');
+    expect(signed(-1.25, 1)).toBe('-1.3');
+    expect(fixed(1.63, 1)).toBe('1.6');
+    expect(fixed(-0.0064, 1)).toBe('0.0');
+    expect(signed(-0.0064, 1)).toBe('0.0');
+    expect(signed(0.0004, 2)).toBe('0.00');
+  });
+
+  it('calls a readout too thin when an arm has fewer than two sessions or no difference', () => {
+    expect(tooFewSessions({ n_personalised: 1, n_generic: 5, diff: null })).toBe(true);
+    expect(tooFewSessions({ n_personalised: 5, n_generic: 5, diff: null })).toBe(true);
+    expect(tooFewSessions({ n_personalised: 184, n_generic: 216, diff: 0.04 })).toBe(false);
+  });
+});

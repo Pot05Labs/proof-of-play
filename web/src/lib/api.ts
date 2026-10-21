@@ -185,11 +185,44 @@ export interface ProducerRow {
   latency_ms: number;
 }
 
+/** Model token accounting (src/pop/agents/llm.py Usage.as_dict). cached_input_tokens is a subset of input_tokens. */
+export interface Usage {
+  calls: number;
+  failures: number;
+  input_tokens: number;
+  output_tokens: number;
+  cached_input_tokens: number;
+}
+
+/** Database writer counters (src/pop/experiment/store.py stats()). */
+export interface StoreStats {
+  written: number;
+  failed: number;
+  pending: number;
+  /** Present on Cosmos-backed builds. */
+  database?: string;
+  container?: string;
+  /** Writes dropped because the in-memory write queue was full. */
+  dropped_queue_full?: number;
+}
+
 export interface ProducerView {
+  /** e.g. "foundry:gpt-4.1-mini" or "stub". */
   model: string;
   llm_calls: number;
   rejected_rewrites: number;
   retracted: number;
+  /** All insights written; `insights` below is capped at the latest 500. */
+  total: number;
+  queue_depth: number;
+  /** Distinct viewer profiles being written for. */
+  profiles: number;
+  write_lag_ms_p50: number | null;
+  write_lag_ms_p95: number | null;
+  /** null when the model client keeps no usage (the stub). */
+  usage: Usage | null;
+  /** null when no database is configured. */
+  store: StoreStats | null;
   insights: ProducerRow[];
 }
 

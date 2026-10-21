@@ -45,6 +45,8 @@ def _names(info: MatchInfo) -> dict[str, str]:
 
 def _fmt(v) -> str:
     if isinstance(v, float):
+        if v >= 1 and v.is_integer():
+            return str(int(v))
         return f"{v:.2f}" if v < 1 else f"{v:.1f}"
     return str(v)
 

@@ -369,6 +369,61 @@ dialog.why::backdrop { background: rgba(5, 8, 15, 0.72); }
 .counter .n { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1; }
 .counter.alarm .n { color: var(--alert); }
 
+.head-spacer { margin-left: auto; }
+
+/* live system: an ops rack, one group per subsystem */
+.ops { margin-top: 16px; padding: 0; overflow: hidden; font-variant-numeric: tabular-nums; }
+.ops-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  padding: 10px 16px; border-bottom: 1px solid var(--rail); background: var(--deck-2);
+}
+.ops-head h2 { margin: 0; font-size: 18px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ops-model {
+  display: inline-flex; align-items: center; gap: 8px; margin-left: auto;
+  border: 1px solid var(--rail); border-radius: var(--r-sm); padding: 3px 10px; font-size: 14px;
+  max-width: 100%; overflow-wrap: anywhere;
+}
+.ops-model i { width: 8px; height: 8px; border-radius: 50%; background: var(--flood); flex: none; animation: tally 2s ease-in-out infinite; }
+.ops-provider { color: var(--mist); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; font-weight: 700; }
+.ops-model strong { font-weight: 700; }
+@keyframes tally { 50% { opacity: 0.35; } }
+
+.ops-rack { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) { .ops-rack { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1240px) { .ops-rack { grid-template-columns: minmax(0, 3fr) minmax(0, 3.2fr) minmax(0, 3.6fr) minmax(0, 3fr); } }
+.ops-group { padding: 12px 16px 14px; border-top: 1px solid var(--rail); border-left: 3px solid transparent; min-width: 0; }
+@media (min-width: 1240px) {
+  .ops-group { border-top: 0; }
+  .ops-group + .ops-group { box-shadow: inset 1px 0 0 var(--rail); }
+}
+.ops-group h3 {
+  margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mist);
+}
+.ops-group.warn { border-left-color: var(--alert); background: rgba(255, 138, 122, 0.07); }
+.ops-group.warn h3 { color: var(--alert); }
+.ops-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px 14px; margin-bottom: 10px; }
+.ops-cell .k { color: var(--mist); font-size: 13px; line-height: 1.25; }
+.ops-cell .n { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1.05; white-space: nowrap; }
+.ops-cell .s { color: var(--mist); font-size: 12px; }
+.ops-cell.alarm .n, .ops-cell.alarm .s { color: var(--alert); }
+.ops-note { color: var(--mist); font-size: 12px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.ops-empty { color: var(--mist); font-size: 14px; margin: 0; }
+.ops-warn { color: var(--alert); font-weight: 700; font-size: 14px; margin: 0; }
+
+.lag-track { position: relative; height: 10px; background: var(--ink); border-radius: 2px; }
+.lag-band { position: absolute; top: 0; bottom: 0; background: rgba(255, 194, 71, 0.35); }
+.lag-p50 { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: var(--flood); }
+.lag-scale { display: flex; justify-content: space-between; color: var(--mist); font-size: 12px; margin-top: 4px; }
+
+.cache { margin-bottom: 10px; }
+.cache-k { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--mist); margin-bottom: 4px; }
+.cache-k strong { color: var(--chalk); font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1; }
+.cache-track { height: 10px; background: var(--ink); border-radius: 2px; overflow: hidden; }
+.cache-track span { display: block; height: 100%; background: var(--ok); }
+.cost { margin: 0; display: grid; gap: 2px; border-top: 1px dashed var(--rail); padding-top: 8px; }
+.cost-n { font-family: var(--display); font-weight: 800; font-size: 24px; line-height: 1; color: var(--flood); }
+.cost-k { color: var(--mist); font-size: 12px; }
+
 .console-grid { display: grid; gap: 16px; padding-top: 16px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1100px) { .console-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
 

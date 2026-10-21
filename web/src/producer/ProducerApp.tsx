@@ -3,6 +3,7 @@ import { api, ApiError, type MatchInfo, type ProducerView } from '../lib/api';
 import { Wordmark } from '../ui/Wordmark';
 import { ExperimentPanel } from './ExperimentPanel';
 import { InsightLog } from './InsightLog';
+import { LiveSystem } from './LiveSystem';
 import { StartControl } from './StartControl';
 
 const KEY = 'pop.producerKey';
@@ -91,35 +92,18 @@ export default function ProducerApp() {
 
   if (!key) return <KeyGate onKey={saveKey} error={gateError} />;
 
-  const rejected = view?.rejected_rewrites ?? 0;
   return (
     <div className="console">
       <header className="console-head">
         <Wordmark />
         <h1>Producer console</h1>
-        <div className="counters" aria-live="polite">
-          <div className="counter">
-            <div className="k">Model</div>
-            <div className="n">{view?.model ?? '–'}</div>
-          </div>
-          <div className="counter">
-            <div className="k">Model calls</div>
-            <div className="n">{view?.llm_calls ?? 0}</div>
-          </div>
-          <div className={`counter${rejected > 0 ? ' alarm' : ''}`}>
-            <div className="k">Rewrites rejected</div>
-            <div className="n">{rejected}</div>
-          </div>
-          <div className={`counter${(view?.retracted ?? 0) > 0 ? ' alarm' : ''}`}>
-            <div className="k">Retracted</div>
-            <div className="n">{view?.retracted ?? 0}</div>
-          </div>
-        </div>
+        <span className="head-spacer" />
         <button type="button" className="btn btn-small btn-ghost" onClick={() => signOut(null)}>
           Lock console
         </button>
       </header>
       {offline && <p className="banner" role="alert">The API is not responding. Retrying every 2 seconds.</p>}
+      <LiveSystem view={view} />
       <div className="console-grid">
         <div style={{ display: 'grid', gap: 16, minWidth: 0 }}>
           <StartControl pkey={key} onStarted={() => void load()} />
