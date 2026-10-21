@@ -8,7 +8,7 @@ param location string = resourceGroup().location
 @description('Foundry model to deploy for the Explainer')
 param modelName string = 'gpt-4.1-mini'
 param modelVersion string = '2025-04-14'
-param modelCapacity int = 150
+param modelCapacity int = 200
 @description('Container image for the API + web app (set after the first ACR build)')
 param image string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('Cosmos container the live app writes engagement to. Use a fresh one for the real watch-along.')

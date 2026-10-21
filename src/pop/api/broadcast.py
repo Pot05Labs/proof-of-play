@@ -82,6 +82,8 @@ class Broadcast:
     queued: set[tuple] = field(default_factory=set)
     lock: threading.Lock = field(default_factory=threading.Lock)
     lag_ms: list[float] = field(default_factory=list)
+    ingest: object | None = None
+    _held: dict = field(default_factory=dict)
 
     def register(self, session: Session) -> None:
         """Remember each viewer profile so its insights are written live, not on request.
@@ -134,6 +136,8 @@ class Broadcast:
                       importance=1.0, facts=chosen[:7])
 
     def _enqueue(self, m: Moment, viewer: Viewer, arm: str) -> None:
+        if self.queue is None:  # not broadcasting live: feeds write on demand
+            return
         ev = self.effective(m, viewer, arm)
         key = (m.moment_id, ev)
         if key in self.cache or key in self.queued:
@@ -175,38 +179,68 @@ class Broadcast:
         self.running = True
         self.queue, self.queued, self.lag_ms = asyncio.Queue(), set(), []
         pool = [asyncio.create_task(self._worker()) for _ in range(self.workers)]
-        async for ev in astream(self.events, self.speed):
-            upd = self.engine.ingest(ev)
-            self.seq, self.t_ms = ev.seq, ev.t_ms
-            if upd.retraction:
-                for key, pub in list(self.cache.items()):
-                    if set(pub.insight.fact_ids) & set(upd.retraction.retracted_fact_ids):
-                        self.retracted_insights.add(pub.insight.insight_id)
-                self._fan_out({"type": "retraction", "seq": ev.seq})
-            new_moments = list(upd.moments)
-            if ev.type.value in ("half_time", "full_time"):
-                recap = self._recap(ev)
-                if recap is not None:
-                    new_moments.append(recap)
-            for m in new_moments:
-                self.moments.append(m)
-                # Insights are queued, never awaited here: the match clock does not wait for a model.
-                # Generic and personalised jobs are shuffled together so neither arm is reliably fresher.
-                jobs = []
-                for viewer in list(self.profiles):
-                    arm = "generic" if viewer.generic and viewer.audience == "fan" else "personalised"
-                    if self.visible(m, viewer, arm):
-                        jobs.append((viewer, arm))
-                jobs.sort(key=lambda j: hashlib.sha256(repr((m.moment_id, j[0])).encode()).digest())
-                for viewer, arm in jobs:
-                    self._enqueue(m, viewer, arm)
-                self._fan_out({"type": "moment", "moment_id": m.moment_id, "importance": m.importance})
-            self._fan_out({"type": "tick", "seq": ev.seq})
+        self._held = {}
+        mode = os.environ.get("POP_INGEST", "direct")
+        if mode == "eventhubs":
+            from pop.api.ingest import EventHubsIngest
+            self.ingest = EventHubsIngest()
+            try:
+                await self.ingest.run(self.events, self.speed, self.apply)
+            except Exception:  # Event Hubs unavailable: finish the match in-process, never stall it
+                logging.getLogger("pop.broadcast").exception("event hubs ingest failed; continuing direct")
+                async for ev in astream([e for e in self.events if e.seq > self.seq], self.speed):
+                    await self.apply(ev)
+        else:
+            async for ev in astream(self.events, self.speed):
+                await self.apply(ev)
         await self.queue.join()
         for t in pool:
             t.cancel()
         self.running, self.finished = False, True
         self._fan_out({"type": "finished"})
+
+    async def apply(self, ev: MatchEvent) -> int:
+        """Ingest one event exactly once and strictly in order. Returns how many events this call applied.
+
+        Safe to call from both the Event Hubs consumer and its fallback watchdog: duplicates are ignored and an
+        event that arrives early waits until every earlier sequence number has been applied.
+        """
+        if ev.seq <= self.seq or ev.seq in self._held:
+            return 0
+        self._held[ev.seq] = ev
+        applied = 0
+        while self.seq + 1 in self._held:
+            self._process(self._held.pop(self.seq + 1))
+            applied += 1
+        return applied
+
+    def _process(self, ev: MatchEvent) -> None:
+        upd = self.engine.ingest(ev)
+        self.seq, self.t_ms = ev.seq, ev.t_ms
+        if upd.retraction:
+            for _key, pub in list(self.cache.items()):
+                if set(pub.insight.fact_ids) & set(upd.retraction.retracted_fact_ids):
+                    self.retracted_insights.add(pub.insight.insight_id)
+            self._fan_out({"type": "retraction", "seq": ev.seq})
+        new_moments = list(upd.moments)
+        if ev.type.value in ("half_time", "full_time"):
+            recap = self._recap(ev)
+            if recap is not None:
+                new_moments.append(recap)
+        for m in new_moments:
+            self.moments.append(m)
+            # Insights are queued, never awaited here: the match clock does not wait for a model.
+            # Generic and personalised jobs are shuffled together so neither arm is reliably fresher.
+            jobs = []
+            for viewer in list(self.profiles):
+                arm = "generic" if viewer.generic and viewer.audience == "fan" else "personalised"
+                if self.visible(m, viewer, arm):
+                    jobs.append((viewer, arm))
+            jobs.sort(key=lambda j: hashlib.sha256(repr((m.moment_id, j[0])).encode()).digest())
+            for viewer, arm in jobs:
+                self._enqueue(m, viewer, arm)
+            self._fan_out({"type": "moment", "moment_id": m.moment_id, "importance": m.importance})
+        self._fan_out({"type": "tick", "seq": ev.seq})
 
     def _fan_out(self, msg: dict) -> None:
         for q in list(self.subscribers):
@@ -300,6 +334,7 @@ class Broadcast:
                 "retracted": sum(r["retracted"] for r in rows), "total": len(rows),
                 "queue_depth": self.queue.qsize() if self.queue else 0,
                 "profiles": len(self.profiles),
+                "ingest": self.ingest.stats() if self.ingest else {"mode": "direct"},
                 "write_lag_ms_p50": round(lag[len(lag) // 2], 1) if lag else None,
                 "write_lag_ms_p95": round(lag[int(len(lag) * 0.95)], 1) if lag else None,
                 "usage": usage.as_dict() if usage else None,
