@@ -8,7 +8,7 @@ param location string = resourceGroup().location
 @description('Foundry model to deploy for the Explainer')
 param modelName string = 'gpt-4.1-mini'
 param modelVersion string = '2025-04-14'
-param modelCapacity int = 50
+param modelCapacity int = 150
 @description('Container image for the API + web app (set after the first ACR build)')
 param image string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('Cosmos container the live app writes engagement to. Use a fresh one for the real watch-along.')
@@ -146,7 +146,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: 'api'
           image: image
-          resources: { cpu: json('1.0'), memory: '2Gi' }
+          resources: { cpu: json('2.0'), memory: '4Gi' }
           env: [
             { name: 'POP_LLM', value: 'foundry' }
             { name: 'AZURE_AI_PROJECT_ENDPOINT', value: foundry.properties.endpoints['OpenAI Language Model Instance API'] }

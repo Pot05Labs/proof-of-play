@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -26,6 +27,18 @@ from pop.experiment.simulated import simulated_log
 from pop.schema import EngagementEvent, EngagementKind
 
 app = FastAPI(title="Proof of Play")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+@app.middleware("http")
+async def server_timing(request: Request, call_next):
+    """Expose server-side processing time so load tests can separate server cost from network cost."""
+    t0 = time.perf_counter()
+    resp = await call_next(request)
+    resp.headers["server-timing"] = f"app;dur={(time.perf_counter() - t0) * 1000:.1f}"
+    return resp
+
+
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get("POP_CORS", "*").split(","),
                    allow_methods=["*"], allow_headers=["*"])
 

@@ -31,6 +31,9 @@ async def call(client: httpx.AsyncClient, method: str, path: str, name: str, **k
     try:
         r = await client.request(method, path, **kw)
         LAT.setdefault(name, []).append((time.perf_counter() - t) * 1000)
+        st = r.headers.get("server-timing", "")
+        if "dur=" in st:
+            LAT.setdefault(name + "@server", []).append(float(st.split("dur=")[1]))
         if r.status_code >= 400:
             ERR[f"{name}:{r.status_code}"] = ERR.get(f"{name}:{r.status_code}", 0) + 1
         return r
@@ -65,7 +68,8 @@ async def viewer(i: int, client: httpx.AsyncClient, stop: float, clubs: list[dic
 
 async def main(url: str, n: int, minutes: float, key: str | None, speed: float) -> None:
     limits = httpx.Limits(max_connections=n, max_keepalive_connections=n)
-    async with httpx.AsyncClient(base_url=url, timeout=15, limits=limits) as client:
+    headers = {"accept-encoding": "gzip"}
+    async with httpx.AsyncClient(base_url=url, timeout=15, limits=limits, headers=headers) as client:
         if key:
             await client.post("/api/admin/start", headers={"x-pop-key": key},
                               json={"seed": 7, "speed": speed, "var_overturn": True})
