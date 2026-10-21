@@ -155,6 +155,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'COSMOS_DATABASE', value: 'pop' }
             { name: 'COSMOS_CONTAINER', value: cosmosContainer }
             { name: 'POP_JOIN_PER_MIN', value: string(joinPerMinute) }
+            { name: 'POP_INGEST', value: 'eventhubs' }
             { name: 'EVENTHUB_NAMESPACE', value: '${eh.name}.servicebus.windows.net' }
             { name: 'POP_ADMIN_KEY', secretRef: 'admin-key' }
             { name: 'POP_EXPERIMENT_SEED', secretRef: 'experiment-seed' }
