@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import os
+import time
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,8 +29,50 @@ app = FastAPI(title="Proof of Play")
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get("POP_CORS", "*").split(","),
                    allow_methods=["*"], allow_headers=["*"])
 
+_STORE = None
+if os.environ.get("COSMOS_ENDPOINT"):
+    from pop.experiment.store import CosmosStore, rehydrate
+    try:
+        _STORE = CosmosStore()
+    except Exception:  # the broadcast must start even if the database is unreachable
+        logging.getLogger("pop.app").exception("cosmos unavailable; running in memory only")
+
 B = Broadcast(id_key=os.environ.get("POP_EXPERIMENT_SEED", "dev"), seed=int(os.environ.get("POP_MATCH_SEED", "7")), speed=float(os.environ.get("POP_SPEED", "1")))
 LOG = EngagementLog()
+if _STORE is not None:
+    try:
+        _s, _e = _STORE.load()
+        _n = rehydrate(LOG, _s, _e)
+        logging.getLogger("pop.app").info("rehydrated %d sessions, %d events", len(_s), _n)
+    except Exception:
+        logging.getLogger("pop.app").exception("rehydrate failed; starting empty")
+    LOG.sink = _STORE
+for _sess in LOG.sessions.values():
+    B.register(_sess)
+
+
+class _Limiter:
+    """Per-client sliding-window limit for the public endpoints."""
+
+    def __init__(self, per_minute: int) -> None:
+        self.per_minute, self.hits = per_minute, {}
+
+    def check(self, key: str) -> None:
+        now = time.time()
+        q = [t for t in self.hits.get(key, []) if now - t < 60]
+        if len(q) >= self.per_minute:
+            raise HTTPException(429, "too many requests, slow down")
+        q.append(now)
+        self.hits[key] = q
+
+
+JOIN_LIMIT = _Limiter(int(os.environ.get("POP_JOIN_PER_MIN", "30")))
+ENGAGE_LIMIT = _Limiter(int(os.environ.get("POP_ENGAGE_PER_MIN", "120")))
+
+
+def _client_key(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 _task: asyncio.Task | None = None
 
 
@@ -90,7 +134,8 @@ def match():
 
 
 @app.post("/api/session")
-def session(req: SessionReq):
+def session(req: SessionReq, request: Request):
+    JOIN_LIMIT.check(_client_key(request))
     if not req.consent:
         raise HTTPException(400, "consent is required to join")
     s = new_session(_seed(), consent=True, mode=req.mode, club_id=req.club_id,
@@ -101,7 +146,8 @@ def session(req: SessionReq):
 
 
 @app.post("/api/engage")
-def engage(req: EngageReq):
+def engage(req: EngageReq, request: Request):
+    ENGAGE_LIMIT.check(req.session_id)
     try:
         LOG.record(EngagementEvent(session_id=req.session_id, t_ms=req.t_ms, kind=req.kind))
     except KeyError as e:
@@ -158,7 +204,7 @@ async def stream():
 @app.get("/api/producer")
 def producer(x_pop_key: str | None = Header(default=None)):
     _admin(x_pop_key)
-    return B.producer_view()
+    return {**B.producer_view(), "store": _STORE.stats() if _STORE else None}
 
 
 @app.get("/api/readout")

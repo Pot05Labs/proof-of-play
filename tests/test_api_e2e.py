@@ -12,6 +12,8 @@ def _client(monkeypatch):
     monkeypatch.setenv("POP_ADMIN_KEY", "k")
     appmod.B = Broadcast(seed=7, speed=0, var_overturn=True)
     appmod.LOG = EngagementLog()
+    appmod.JOIN_LIMIT = appmod._Limiter(10_000)
+    appmod.ENGAGE_LIMIT = appmod._Limiter(10_000)
     return TestClient(appmod.app)
 
 
@@ -99,3 +101,10 @@ def test_readout_with_one_session_returns_nulls_not_500(monkeypatch):
     c.post("/api/session", json={"consent": True})
     r = c.get("/api/readout", headers={"x-pop-key": "k"})
     assert r.status_code == 200 and r.json()["ci_low"] is None
+
+
+def test_join_is_rate_limited_per_client(monkeypatch):
+    c = _client(monkeypatch)
+    appmod.JOIN_LIMIT = appmod._Limiter(3)
+    codes = [c.post("/api/session", json={"consent": True}).status_code for _ in range(5)]
+    assert codes[:3] == [200, 200, 200] and codes[3:] == [429, 429]

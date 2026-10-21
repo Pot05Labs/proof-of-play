@@ -13,6 +13,7 @@ dependencies = [
     "openai>=3.36.0",
     "azure-identity>=1.26.0",
     "anthropic>=2.1.0",
+    "azure-cosmos>=4.17.1",
 ]
 
 [dependency-groups]

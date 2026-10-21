@@ -58,18 +58,24 @@ class EngagementLog:
     sessions: dict[str, Session] = field(default_factory=dict)
     events: dict[str, list[EngagementEvent]] = field(default_factory=lambda: defaultdict(list))
     received: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    sink: object | None = None  # optional durable store (CosmosStore) with .session() and .event()
 
     def add_session(self, s: Session) -> None:
         if s.session_id in self.sessions:
             raise ValueError("session already registered; arms are never re-assigned")
         self.sessions[s.session_id] = s
+        if self.sink is not None:
+            self.sink.session(s)
 
     def record(self, e: EngagementEvent, received_s: float | None = None) -> None:
         """Store an event with the SERVER's receive time; the client's match clock is not trusted for time."""
         if e.session_id not in self.sessions:
             raise KeyError("unknown session")
+        r = time.time() if received_s is None else received_s
         self.events[e.session_id].append(e)
-        self.received[e.session_id].append(time.time() if received_s is None else received_s)
+        self.received[e.session_id].append(r)
+        if self.sink is not None:
+            self.sink.event(e, r, len(self.events[e.session_id]))
 
     def watched_minutes(self, session_id: str) -> float:
         """Distinct 15-second wall-clock slots in which the server received a heartbeat.
