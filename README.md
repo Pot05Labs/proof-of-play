@@ -28,10 +28,10 @@ The five stages of the brief:
 
 | Stage | How Proof of Play does it | Code |
 |---|---|---|
-| Ingest | The simulator streams events paced by the match clock into the live broadcast | `src/pop/sim/`, `src/pop/sim/stream.py` |
+| Ingest | The simulator publishes each event to Azure Event Hubs, keyed by match so order holds. The broadcast consumes them back and applies each exactly once, in sequence. If the hub stalls for 3 seconds a watchdog applies the event from a local buffer, so the match never stops | `src/pop/sim/`, `src/pop/api/ingest.py` |
 | Interpret | An incremental engine builds state, facts with evidence, and moments with importance scores | `src/pop/engine/` |
-| Explain | A model rewrites a grounded draft for each moment; a Verifier checks it; every card has a "Why?" panel with its facts and source events | `src/pop/agents/` |
-| Render | Insight cards beside a live pitch, scoreboard and gauges, fed from `/api/feed` and a server-sent event stream | `web/src/viewer/` |
+| Explain | Six agents on Microsoft Agent Framework. An Interpreter frames the moment, a Writer and an Editor rewrite a grounded draft, a Verifier checks every number and name, and a Fallback and Publisher close it out. Every card has a "Why?" panel with its facts, source events and agent trace | `src/pop/agents/orchestrator.py` |
+| Render | Insight cards beside a live pitch, scoreboard and gauges, fed from `/api/feed` and a server-sent event stream. Timed broadcast overlays (lower third, corner, full screen) come from `/api/overlays` for a graphics system to play out | `web/src/viewer/`, `src/pop/api/broadcast.py` |
 | Personalise | Casual fan or analyst, favourite club, favourite player, and English, isiZulu, Kiswahili or Spanish | `src/pop/agents/explainer.py`, `src/pop/api/broadcast.py` |
 
 The suggested features:
@@ -41,7 +41,7 @@ The suggested features:
 | Player identification with speed and distance thresholds | Built. Per-minute tracking events; tags for top speed over 33 km/h and 5 km and 10 km covered | `player_tracking` in `src/pop/sim/match.py`, `src/pop/engine/config.py` |
 | Pass quality: distance, accuracy, difficulty | Built. Pass accuracy per team, pass difficulty from length, angle and pressure, pass streaks | `src/pop/engine/models.py` |
 | Speed: ball and shot speed | Built. Shot speed facts and a "rocket shot" moment over 110 km/h | `src/pop/engine/core.py` |
-| Narratives, player context, milestones | Partly built. Moment narratives and player milestones are live. Half-time and full-time recaps are not built | `src/pop/agents/` |
+| Narratives, player context, milestones | Built. Moment narratives, player milestones, and half-time and full-time recaps built only from facts the engine still stands behind after any VAR change | `src/pop/agents/`, `src/pop/api/broadcast.py` |
 | Explainability: control vs chaos, pressure, rhythm | Built. Momentum, pressing intensity and a control-versus-chaos index, each raising moments when they cross a threshold | `src/pop/engine/core.py` |
 | Data innovation | Built. A seeded synthetic match generator with team styles, game-state shifts and a VAR overturn hook. The same seed replays byte for byte | `src/pop/sim/` |
 | Multi-language storytelling | Built through the model and a written style guide with football vocabulary per language. UI labels in isiZulu and Kiswahili still need a native speaker's review | `src/pop/agents/style_guide.py`, `web/src/lib/i18n.ts` |
@@ -57,7 +57,7 @@ The suggested features:
 
 ## Architecture
 
-Simulator, engine, moments, a worker pool of model calls, the Verifier, a cache, then a per-arm feed to each viewer. The match clock never waits for a model. Diagrams and detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Simulator, Event Hubs, engine, moments, a worker pool running the agent pipeline, the Verifier, a cache, then a per-arm feed to each viewer. The match clock never waits for a model. Diagrams and detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Microsoft and Azure technologies used
 
@@ -67,7 +67,8 @@ Simulator, engine, moments, a worker pool of model calls, the Verifier, a cache,
 | Azure Container Apps | Runs the API and serves the built web app from the same origin |
 | Azure Container Registry | Holds the image. The app pulls it with its managed identity |
 | Azure Cosmos DB (serverless) | Durable engagement log for the experiment. Writes go through a background thread, the log rehydrates on restart, and documents expire after 30 days |
-| Azure Event Hubs | Namespace and `match-events` hub provisioned with role assignments for the ingest stage. The code does not use it yet; the match streams in process |
+| Azure Event Hubs | The ingest stage. Every match event goes through the `match-events` hub with managed identity. In a full cloud match all 4,267 events came back through the hub with none needing the fallback |
+| Microsoft Agent Framework | Orchestrates the six-agent moment pipeline. The Writer and Editor are framework agents; the Verifier stays plain code |
 | Log Analytics | Container Apps logs |
 | Bicep | All of the above in one template: [infra/main.bicep](infra/main.bicep) |
 
@@ -101,19 +102,18 @@ Tests: `uv run pytest` and `cd web && npm test`. Full report: `uv run python scr
 ## Deploy to Azure
 
 ```bash
-az group create -n rg-proof-of-play -l southafricanorth
+az group create -n pop-hackathon-rg -l southafricanorth
 
 # 1. infrastructure (the app starts on a placeholder image)
-az deployment group create -g rg-proof-of-play -f infra/main.bicep \
+az deployment group create -g pop-hackathon-rg -f infra/main.bicep \
   -p prefix=pop adminKey=<producer-key> experimentSeed=<long-random-seed>
 
-# 2. build the image in the registry (acrLoginServer is a deployment output)
-az acr build -r <acr-name> -t pop:latest .
-
-# 3. point the app at the image; reuse the same seed so no viewer changes arm
-az deployment group create -g rg-proof-of-play -f infra/main.bicep \
-  -p prefix=pop adminKey=<producer-key> experimentSeed=<same-seed> image=<acr-login-server>/pop:latest
+# 2. build and roll out an image. The script refuses a dirty tree, stops if the build fails,
+#    and waits until the new revision is healthy. Secrets come from ~/.config/proof-of-play/secrets.env.
+scripts/deploy.sh v1 watchalong
 ```
+
+`cosmosContainer` keeps data sets apart: `loadtest` for load tests, `watchalong` for the real experiment. The load-test script refuses to run against any other container.
 
 The app runs as one replica on purpose. The live broadcast lives in one process, and Cosmos DB holds the engagement log. After a restart the log comes back from Cosmos and the match is started again from the producer console.
 

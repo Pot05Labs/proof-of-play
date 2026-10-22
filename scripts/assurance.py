@@ -41,7 +41,10 @@ def main() -> int:
     web = ROOT / "web"
     if (web / "package.json").exists():
         code, out = run(["npm", "test", "--silent", "--", "--run"], cwd=web)
-        rows.append(("Web tests (vitest)", code == 0, out.splitlines()[-1] if out else ""))
+        summary = [ln.strip() for ln in out.splitlines() if ln.strip().startswith(("Tests", "Test Files"))]
+        skipped = any("skipped" in ln or "todo" in ln for ln in summary)
+        rows.append(("Web tests (vitest)", code == 0 and not skipped,
+                     "; ".join(summary) or (out.splitlines()[-1] if out else "")))
         code, out = run(["npm", "run", "build", "--silent"], cwd=web)
         rows.append(("Web production build", code == 0, "built" if code == 0 else out[-200:]))
 

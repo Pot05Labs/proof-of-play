@@ -54,7 +54,7 @@ def _fmt(v) -> str:
 TEMPLATES: dict[str, str] = {
     "goal": "Goal for {subject}.",
     "score": "It is {value}.",
-    "xg_player": "{subject}'s chance was worth {value} expected goals.",
+    "xg_player": "{subject} has built {value} expected goals in the match.",
     "xg_team": "{subject} have built {value} expected goals.",
     "shot_speed": "{subject}'s shot left the boot at {value} km/h.",
     "big_chance_missed": "{subject} missed a chance worth {value} expected goals.",
@@ -71,6 +71,11 @@ TEMPLATES: dict[str, str] = {
 }
 
 
+XG_UNITS = {
+    "xg_team": "xG, this team's total in the match so far",
+    "xg_player": "xG, this player's total in the match so far",
+    "big_chance_missed": "xG of this one missed chance",
+}
 RECAP_LEAD = {"recap_half_time": "Half-time.", "recap_full_time": "Full time."}
 
 
@@ -89,6 +94,8 @@ def fact_rows(facts: list[Fact], info: MatchInfo) -> list[dict]:
         unit = f.unit
         if f.kind == "score":
             subject, unit = f"{info.home.name} v {info.away.name}", "goals, home team first"
+        elif f.kind in XG_UNITS:  # say whose xG it is, so a team total is never credited to one player
+            unit = XG_UNITS[f.kind]
         rows.append({"id": f.fact_id, "kind": f.kind, "subject": subject, "value": f.value, "unit": unit,
                      "window": f.window})
     return rows
