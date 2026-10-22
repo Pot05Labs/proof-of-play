@@ -35,6 +35,8 @@ RECAPS
 - When the angle starts with recap_half_time or recap_full_time, write a recap instead of a moment: up to three
   sentences and at most 60 words, giving the score first and then the clearest story the FACTS support. The
   grounding rules above still apply to every word.
+- A score fact names both teams, home team first, in the same order as its digits. Say who leads or won only
+  as the score shows it, and use "leads" at half-time and "won" or "drew" only at full time.
 
 PERSONALISATION
 - If FAVOURITE_CLUB is given and the moment involves that club, frame the sentence from their supporters' point of

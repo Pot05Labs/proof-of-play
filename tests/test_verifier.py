@@ -84,3 +84,13 @@ def test_template_writes_whole_numbers_cleanly():
     from pop.agents.explainer import template_draft
     f = _fact("f1", "h0", 10000.0, kind="player_distance_milestone")
     assert "10000 metres" in template_draft([f], _info()) and "10000.0" not in template_draft([f], _info())
+
+
+def test_score_fact_admits_both_team_names_and_drafts_name_them_home_first():
+    from pop.agents.explainer import fact_rows, template_draft
+    info = _info()
+    score = _fact("s", info.match_id, "2-1", kind="score", sk="match")
+    text = f"{info.home.name} lead {info.away.name} 2-1."
+    assert verify(_ins(text, ["s"]), [score], info).ok
+    assert template_draft([score], info, "recap_full_time") == f"Full time. {info.home.name} 2, {info.away.name} 1."
+    assert fact_rows([score], info)[0]["subject"] == f"{info.home.name} v {info.away.name}"

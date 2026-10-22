@@ -63,6 +63,8 @@ def verify(insight: Insight, cited: list[Fact], info: MatchInfo, minutes: set[in
             reasons.append(f"number {raw} is not in the cited facts")
 
     cited_subjects = {f.subject_id for f in cited}
+    if any(f.kind == "score" for f in cited):  # a score is about both teams: it names them home first
+        cited_subjects |= {info.home.team_id, info.away.team_id}
     players = {p.player_id: p for t in (info.home, info.away) for p in t.squad}
     teams = {info.home.team_id: info.home, info.away.team_id: info.away}
     text = insight.text.lower()

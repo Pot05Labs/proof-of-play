@@ -43,7 +43,7 @@ from agent_framework import (
 )
 from pydantic import BaseModel, ConfigDict
 
-from pop.agents.explainer import SYSTEM, Viewer, _names, template_draft
+from pop.agents.explainer import SYSTEM, Viewer, _names, fact_rows, template_draft
 from pop.agents.llm import LLM, StubLLM
 from pop.agents.verifier import verify
 from pop.schema import Fact, Insight, MatchInfo, Moment
@@ -134,8 +134,7 @@ def _payload(state: MomentState) -> dict:
     v = state.viewer
     return {
         "draft": state.draft,
-        "facts": [{"id": f.fact_id, "kind": f.kind, "subject": names.get(f.subject_id, f.subject_id),
-                   "value": f.value, "unit": f.unit, "window": f.window} for f in state.facts],
+        "facts": fact_rows(list(state.facts), state.info),
         "audience": v.audience,
         "language": v.language,
         "favourite_club": names.get(v.club_id) if v.club_id else None,
@@ -210,7 +209,7 @@ class Interpreter(Executor):
         tone = ("lead with the number, then the reason in plain terms" if v.audience == "analyst"
                 else "tell the story in everyday words, one number at most")
         angle = f"{state.moment.kind}; {tone}; {hook}"
-        draft = template_draft(facts, info)
+        draft = template_draft(facts, info, state.moment.kind)
         new = state.step("Interpreter", "frame_moment",
                          f"{state.moment.kind}, {len(facts)} facts, viewer={v.audience}/{v.language}",
                          f"lead={[f.fact_id for f in lead]} angle={angle} draft={draft!r}", t0, True,
@@ -393,7 +392,7 @@ def run_moment(moment: Moment, facts: list[Fact], info: MatchInfo, viewer: Viewe
         broken = state.step("Orchestrator", "workflow_error", "agent workflow", f"{type(e).__name__}: {e}", t0, False,
                             rejections=(f"orchestrator error ({type(e).__name__})",))
         try:
-            final = _fallback(broken.model_copy(update={"draft": template_draft(list(facts), info)}),
+            final = _fallback(broken.model_copy(update={"draft": template_draft(list(facts), info, moment.kind)}),
                               time.perf_counter())
         except Exception as e2:  # noqa: BLE001 - last resort: nothing verifiable, publish nothing usable
             log.error("fallback failed: %s", type(e2).__name__)

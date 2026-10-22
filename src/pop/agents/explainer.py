@@ -55,7 +55,7 @@ TEMPLATES: dict[str, str] = {
     "goal": "Goal for {subject}.",
     "score": "It is {value}.",
     "xg_player": "{subject}'s chance was worth {value} expected goals.",
-    "xg_team": "{subject} have built {value} expected goals so far.",
+    "xg_team": "{subject} have built {value} expected goals.",
     "shot_speed": "{subject}'s shot left the boot at {value} km/h.",
     "big_chance_missed": "{subject} missed a chance worth {value} expected goals.",
     "momentum_shift": "Momentum has swung towards {subject}.",
@@ -71,24 +71,51 @@ TEMPLATES: dict[str, str] = {
 }
 
 
-def template_draft(facts: list[Fact], info: MatchInfo) -> str:
+RECAP_LEAD = {"recap_half_time": "Half-time.", "recap_full_time": "Full time."}
+
+
+def _score_line(f: Fact, info: MatchInfo) -> str:
+    """'2-1' is home-away. Name both teams so neither the reader nor the model has to guess who leads."""
+    h, a = str(f.value).split("-")
+    return f"{info.home.name} {h}, {info.away.name} {a}."
+
+
+def fact_rows(facts: list[Fact], info: MatchInfo) -> list[dict]:
+    """The facts as the model sees them. A score's subject names the teams in the order its digits follow."""
+    names = _names(info)
+    rows = []
+    for f in facts:
+        subject = names.get(f.subject_id, f.subject_id)
+        unit = f.unit
+        if f.kind == "score":
+            subject, unit = f"{info.home.name} v {info.away.name}", "goals, home team first"
+        rows.append({"id": f.fact_id, "kind": f.kind, "subject": subject, "value": f.value, "unit": unit,
+                     "window": f.window})
+    return rows
+
+
+def template_draft(facts: list[Fact], info: MatchInfo, kind: str | None = None) -> str:
     names = _names(info)
     parts = []
     for f in facts:
+        if f.kind == "score":
+            parts.append(_score_line(f, info))
+            continue
         tpl = TEMPLATES.get(f.kind, "{subject}: {kind} {value}.")
         parts.append(tpl.format(subject=names.get(f.subject_id, "The match"), value=_fmt(f.value), kind=f.kind))
+    if kind in RECAP_LEAD:  # score plus both teams' xG, under a lead that says which break it is
+        return " ".join([RECAP_LEAD[kind], *parts[:3]])
     return " ".join(parts[:2])
 
 
 def explain(moment: Moment, facts: list[Fact], info: MatchInfo, viewer: Viewer = GENERIC,
             llm: LLM | None = None, minute: int | None = None) -> Insight:
     llm = llm or StubLLM()
-    draft = template_draft(facts, info)
+    draft = template_draft(facts, info, moment.kind)
     names = _names(info)
     payload = {
         "draft": draft,
-        "facts": [{"id": f.fact_id, "kind": f.kind, "subject": names.get(f.subject_id, f.subject_id),
-                   "value": f.value, "unit": f.unit, "window": f.window} for f in facts],
+        "facts": fact_rows(facts, info),
         "audience": viewer.audience,
         "language": viewer.language,
         "favourite_club": names.get(viewer.club_id) if viewer.club_id else None,
