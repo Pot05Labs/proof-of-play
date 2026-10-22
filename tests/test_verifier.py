@@ -94,3 +94,11 @@ def test_score_fact_admits_both_team_names_and_drafts_name_them_home_first():
     assert verify(_ins(text, ["s"]), [score], info).ok
     assert template_draft([score], info, "recap_full_time") == f"Full time. {info.home.name} 2, {info.away.name} 1."
     assert fact_rows([score], info)[0]["subject"] == f"{info.home.name} v {info.away.name}"
+
+
+def test_team_short_code_matches_only_in_capitals():
+    info = _info()
+    info.home.short = "HAD"  # a real seed codes Harrowmere Dynamos as HAD
+    f = _fact("p", "A", 0.92, kind="possession_swing", sk="team")
+    assert verify(_ins("Harbour Rovers have had 92% of the ball.", ["p"]), [f], info).ok
+    assert not verify(_ins("HAD are chasing, Harbour Rovers have 92% of the ball.", ["p"]), [f], info).ok

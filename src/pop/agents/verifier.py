@@ -82,9 +82,12 @@ def verify(insight: Insight, cited: list[Fact], info: MatchInfo, minutes: set[in
         if re.search(rf"\b{re.escape(full)}\b", text) or re.search(rf"\b{re.escape(surname)}\b", text) and surname not in cited_surnames:
             reasons.append(f"mentions {p.name}, who is not a subject of any cited fact")
     for tid, t in teams.items():
-        for label in {t.name.lower(), t.short.lower()}:
-            if re.search(rf"\b{re.escape(label)}\b", text) and tid not in cited_subjects \
-                    and not any(players[s].player_id in {p.player_id for p in t.squad}
-                                for s in cited_subjects if s in players):
-                reasons.append(f"mentions {t.name}, which is not a subject of any cited fact")
+        # The full name matches in any case. A short code matches only in capitals, as written on a scoreboard:
+        # otherwise a club coded HAD is "mentioned" by every sentence with the word "had".
+        named = re.search(rf"\b{re.escape(t.name.lower())}\b", text) \
+            or re.search(rf"\b{re.escape(t.short.upper())}\b", insight.text)
+        if named and tid not in cited_subjects \
+                and not any(players[s].player_id in {p.player_id for p in t.squad}
+                            for s in cited_subjects if s in players):
+            reasons.append(f"mentions {t.name}, which is not a subject of any cited fact")
     return Verdict(ok=not reasons, reasons=tuple(dict.fromkeys(reasons)))
