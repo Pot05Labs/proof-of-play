@@ -30,7 +30,7 @@ The five stages of the brief:
 |---|---|---|
 | Ingest | The simulator publishes each event to Azure Event Hubs, keyed by match so order holds. The broadcast consumes them back and applies each exactly once, in sequence. If the hub stalls for 3 seconds a watchdog applies the event from a local buffer, so the match never stops | `src/pop/sim/`, `src/pop/api/ingest.py` |
 | Interpret | An incremental engine builds state, facts with evidence, and moments with importance scores | `src/pop/engine/` |
-| Explain | Six agents on Microsoft Agent Framework. An Interpreter frames the moment, a Writer and an Editor rewrite a grounded draft, a Verifier checks every number and name, and a Fallback and Publisher close it out. Every card has a "Why?" panel with its facts, source events and agent trace | `src/pop/agents/orchestrator.py` |
+| Explain | Six agents on Microsoft Agent Framework. An Interpreter frames the moment, a Writer and an Editor rewrite a grounded draft, a Verifier checks every number and name, and a Fallback and Publisher close it out. Every card has a "Why?" panel with its facts and source events. The producer API returns each insight's agent trace | `src/pop/agents/orchestrator.py` |
 | Render | Insight cards beside a live pitch, scoreboard and gauges, fed from `/api/feed` and a server-sent event stream. Timed broadcast overlays (lower third, corner, full screen) come from `/api/overlays` for a graphics system to play out | `web/src/viewer/`, `src/pop/api/broadcast.py` |
 | Personalise | Casual fan or analyst, favourite club, favourite player, and English, isiZulu, Kiswahili or Spanish | `src/pop/agents/explainer.py`, `src/pop/api/broadcast.py` |
 
