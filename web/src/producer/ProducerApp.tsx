@@ -48,9 +48,23 @@ export default function ProducerApp() {
   const [info, setInfo] = useState<MatchInfo | null>(null);
   const [isPublic, setIsPublic] = useState(false);
 
-  useEffect(() => {
-    api.health().then((h) => setIsPublic(!!h.public_console)).catch(() => undefined);
+  // Public (judging) mode is the server's call. Keep asking until the API answers, so a cold start or a blip
+  // never strands a judge on the key screen.
+  const checkPublic = useCallback(async (): Promise<boolean> => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const pub = !!(await api.health()).public_console;
+        setIsPublic(pub);
+        return pub;
+      } catch {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)));
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    void checkPublic();
+  }, [checkPublic]);
 
   useEffect(() => {
     api.match().then(setInfo).catch(() => undefined);
@@ -83,10 +97,14 @@ export default function ProducerApp() {
       setView(await api.producer(key));
       setOffline(false);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 403) signOut('That key was not accepted. Check POP_ADMIN_KEY on the server.');
+      if (e instanceof ApiError && e.status === 403) {
+        // Public mode may have been switched off since this tab loaded: re-ask before deciding what to show.
+        const pub = await checkPublic();
+        if (!pub) signOut(key ? 'That key was not accepted. Check POP_ADMIN_KEY on the server.' : 'This console now needs the producer key.');
+      }
       else setOffline(true);
     }
-  }, [key, isPublic, signOut]);
+  }, [key, isPublic, signOut, checkPublic]);
 
   useEffect(() => {
     if (!key && !isPublic) return;

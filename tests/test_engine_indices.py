@@ -32,7 +32,7 @@ def test_momentum_sign_follows_dominant_team():
         eng.ingest(e)
     assert eng.state().momentum < 0
     shifts = [f for f in eng.facts if f.kind == "momentum_shift"]
-    assert shifts[-1].subject_id == AWAY and float(shifts[-1].value) < 0
+    assert shifts[-1].subject_id == AWAY and 0 < float(shifts[-1].value) <= 1  # unsigned swing towards the subject
 
 
 def test_momentum_needs_minimum_sample():

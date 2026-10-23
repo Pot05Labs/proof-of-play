@@ -318,6 +318,7 @@ class Broadcast:
         rows = []
         with self.lock:
             items = list(self.cache.items())
+        kinds = {m.moment_id: m.kind for m in self.moments}
         for (mid, viewer), pub in items:
             rows.append({"insight_id": pub.insight.insight_id, "minute": pub.minute, "text": pub.insight.text,
                          "verified": pub.insight.verified, "notes": pub.insight.verifier_notes,
@@ -325,7 +326,7 @@ class Broadcast:
                          "audience": viewer.audience, "language": viewer.language,
                          "club": viewer.club_id, "player": viewer.player_id,
                          "latency_ms": round(pub.latency_ms, 1),
-                         "kind": next((m.kind for m in self.moments if m.moment_id == mid), None),
+                         "kind": kinds.get(mid),
                          "trace": [t.model_dump() for t in pub.trace]})
         rows.sort(key=lambda r: r["minute"])
         lag = sorted(self.lag_ms)

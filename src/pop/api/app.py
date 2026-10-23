@@ -104,6 +104,21 @@ def _admin(key: str | None) -> None:
         raise HTTPException(403, "producer key required")
 
 
+_CACHE: dict[tuple, tuple[float, object]] = {}
+
+
+def _cached(key: tuple, ttl: float, compute):
+    """Share one result between pollers. The console polls every 2 s per open tab, and in judging mode anyone
+    can open it, so the single replica that runs the live match must not redo this work per request."""
+    now = time.monotonic()
+    hit = _CACHE.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    val = compute()
+    _CACHE[key] = (now, val)
+    return val
+
+
 def _public_console() -> bool:
     """For judging: anyone may READ the producer console and readout. Starting a match still needs the key."""
     return os.environ.get("POP_PUBLIC_CONSOLE") == "1"
@@ -169,6 +184,8 @@ def health():
 async def start(req: StartReq, x_pop_key: str | None = Header(default=None)):
     global _task
     _admin(x_pop_key)
+    if os.environ.get("POP_AUTOLOOP_SPEED"):
+        raise HTTPException(409, "judging mode: matches replay automatically, so a match cannot be started by hand")
     if _task and not _task.done():
         raise HTTPException(409, "a broadcast is already running")
     B.seed, B.speed, B.var_overturn = req.seed, req.speed, req.var_overturn
@@ -270,17 +287,22 @@ async def stream():
 @app.get("/api/producer")
 def producer(x_pop_key: str | None = Header(default=None)):
     _reader(x_pop_key)
-    return {**B.producer_view(), "store": _STORE.stats() if _STORE else None}
+    return _cached(("producer",), 1.0, lambda: {**B.producer_view(), "store": _STORE.stats() if _STORE else None})
 
 
 @app.get("/api/readout")
 def get_readout(simulated: bool = False, metric: str = "watched_minutes",
                 x_pop_key: str | None = Header(default=None)):
     _reader(x_pop_key)
-    log = simulated_log(400, true_lift_minutes=5.0, seed=11) if simulated else LOG
-    r = readout(log, metric)
-    clean = {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in r.__dict__.items()}
-    return {"simulated": simulated, **clean, "verdict": r.verdict}
+
+    def compute():
+        log = simulated_log(400, true_lift_minutes=5.0, seed=11) if simulated else LOG
+        r = readout(log, metric)
+        clean = {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in r.__dict__.items()}
+        return {"simulated": simulated, **clean, "verdict": r.verdict}
+
+    # The simulated readout never changes; the real one is a bootstrap, so recompute at most every 10 s.
+    return _cached(("readout", metric, simulated), 1e9 if simulated else 10.0, compute)
 
 
 # Serve the built web app (web/dist) from the same origin in production.

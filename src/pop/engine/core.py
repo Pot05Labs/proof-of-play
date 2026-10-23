@@ -700,8 +700,10 @@ class Engine:
             side = self.away
         if side is not None and side != self._momentum_side:
             self._momentum_side = side
-            f = self._emit_fact("momentum_shift", "team", side, self._r(self._momentum), evidence,
-                                unit="momentum (home positive)", window=self._window_label())
+            # subject_id is the side gaining momentum, so the value is the unsigned size of the swing.
+            # A signed home-positive value read as "-0.375 for the away side" by models and viewers alike.
+            f = self._emit_fact("momentum_shift", "team", side, self._r(abs(self._momentum)), evidence,
+                                unit="momentum swing towards this team (0 to 1)", window=self._window_label())
             self._emit_moment("momentum_shift",
                               self._base("momentum_shift") + cfg.importance.momentum_weight * abs(m), [f])
 

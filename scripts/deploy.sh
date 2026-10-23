@@ -5,7 +5,11 @@
 set -euo pipefail
 TAG="${1:?image tag, e.g. v7}"; CONTAINER="${2:-watchalong}"; JOIN="${3:-30}"; MODE="${4:-}"
 PUBLIC=false; LOOP=""
-if [ "$MODE" = "judging" ]; then PUBLIC=true; LOOP=10; fi
+if [ "$MODE" = "judging" ]; then
+  # Judges' sessions from replayed matches must never land in the pre-registered watch-along log.
+  [ "$CONTAINER" = "watchalong" ] && { echo "refusing: judging mode needs its own container (engagement or loadtest)"; exit 1; }
+  PUBLIC=true; LOOP=10
+fi
 RG=pop-hackathon-rg; ACR=popxjqzeluzrxqkoacr
 cd "$(dirname "$0")/.."
 git diff --quiet && git diff --cached --quiet || { echo "refusing: uncommitted changes"; exit 1; }

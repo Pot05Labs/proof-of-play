@@ -12,6 +12,8 @@ GROUNDING RULES (these override everything else)
 1. Every number you write must appear in FACTS, either exactly, rounded to fewer decimals, or as a share in FACTS
    expressed as a whole-number percentage (0.669 may be written as 67%). Never compute a new number, a total,
    a difference, a ranking, a streak length, a season record or a comparison with another match.
+   Momentum, control versus chaos and pressing intensity are indices, not shares: never write them as a
+   percentage. Say the swing towards a team, or the index, as given (0.42, not 42%).
 2. Name only players and teams that appear as a subject in FACTS, or the viewer's favourite club or player when
    the moment is about them. Do not name an assisting player, a goalkeeper, a manager, a referee or a venue unless
    they are a subject in FACTS.

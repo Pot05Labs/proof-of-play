@@ -26,6 +26,10 @@ def _normalise(raw: str) -> str:
 # we only whitelist match-clock minutes that appear in fact windows or seq-derived minutes.
 
 
+# Indices between 0 and 1 that are not shares of anything: "0.38 momentum" is not "38% of the momentum".
+INDEX_KINDS = {"momentum_shift", "control_to_chaos", "chaos_to_control", "pressure_spike"}
+
+
 @dataclass(frozen=True)
 class Verdict:
     ok: bool
@@ -39,9 +43,7 @@ def _fact_numbers(facts: list[Fact]) -> set[str]:
             v = float(f.value)
             for fmt in ("{:.0f}", "{:.1f}", "{:.2f}"):
                 out.add(fmt.format(v))
-                out.add(fmt.format(abs(v)))  # signed indices (momentum) are spoken as a size
-            if 0 <= abs(v) <= 1:  # shares and indices may be spoken as percentages
-                v = abs(v)
+            if 0 <= v <= 1 and f.kind not in INDEX_KINDS:  # shares may be spoken as percentages; indices may not
                 for fmt in ("{:.0f}", "{:.1f}"):
                     out.add(fmt.format(v * 100))
         for m in _NUM.findall(f"{f.window} {f.unit} {f.value}"):

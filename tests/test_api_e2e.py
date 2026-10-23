@@ -14,6 +14,7 @@ def _client(monkeypatch):
     appmod.LOG = EngagementLog()
     appmod.JOIN_LIMIT = appmod._Limiter(10_000)
     appmod.ENGAGE_LIMIT = appmod._Limiter(10_000)
+    appmod._CACHE.clear()  # results are cached across requests; never across tests
     return TestClient(appmod.app)
 
 
@@ -151,6 +152,9 @@ def test_public_console_is_read_only(monkeypatch):
     assert c.get("/api/producer").status_code == 200
     assert c.get("/api/readout").status_code == 200
     assert c.post("/api/admin/start", json={"seed": 7, "speed": 0}).status_code == 403  # starting still needs the key
+    monkeypatch.setenv("POP_AUTOLOOP_SPEED", "10")
+    r = c.post("/api/admin/start", json={"seed": 7, "speed": 0}, headers={"x-pop-key": "k"})
+    assert r.status_code == 409 and "judging mode" in r.json()["detail"]
 
 
 def test_autoloop_plays_matches_back_to_back(monkeypatch):

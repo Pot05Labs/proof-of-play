@@ -104,11 +104,8 @@ def test_team_short_code_matches_only_in_capitals():
     assert not verify(_ins("HAD are chasing, Harbour Rovers have 92% of the ball.", ["p"]), [f], info).ok
 
 
-def test_momentum_reaches_the_model_unsigned_and_named_for_the_gaining_side():
-    from pop.agents.explainer import fact_rows
+def test_momentum_index_is_never_a_percentage():
     info = _info()
-    f = _fact("m", "A", -0.375, kind="momentum_shift", sk="team")  # away side gaining: negative home-positive index
-    row = fact_rows([f], info)[0]
-    assert row["value"] == 0.375 and "GAINING" in row["unit"]
+    f = _fact("m", "A", 0.375, kind="momentum_shift", sk="team")  # engine: unsigned swing towards the subject
     assert verify(_ins("Momentum has swung to Harbour Rovers, a swing of 0.38.", ["m"]), [f], info).ok
-    assert verify(_ins("Harbour Rovers have 38% of the momentum.", ["m"]), [f], info).ok
+    assert not verify(_ins("Harbour Rovers have 38% of the momentum.", ["m"]), [f], info).ok
