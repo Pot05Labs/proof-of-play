@@ -96,7 +96,11 @@ def fact_rows(facts: list[Fact], info: MatchInfo) -> list[dict]:
             subject, unit = f"{info.home.name} v {info.away.name}", "goals, home team first"
         elif f.kind in XG_UNITS:  # say whose xG it is, so a team total is never credited to one player
             unit = XG_UNITS[f.kind]
-        rows.append({"id": f.fact_id, "kind": f.kind, "subject": subject, "value": f.value, "unit": unit,
+        value = f.value
+        if f.kind == "momentum_shift" and isinstance(value, (int, float)):
+            # The engine signs momentum home-positive. The model read "-0.375 for the away side" as "away from them".
+            value, unit = abs(value), "size of the momentum swing; the subject team is the one GAINING momentum"
+        rows.append({"id": f.fact_id, "kind": f.kind, "subject": subject, "value": value, "unit": unit,
                      "window": f.window})
     return rows
 

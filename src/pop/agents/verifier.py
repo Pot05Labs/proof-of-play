@@ -39,7 +39,9 @@ def _fact_numbers(facts: list[Fact]) -> set[str]:
             v = float(f.value)
             for fmt in ("{:.0f}", "{:.1f}", "{:.2f}"):
                 out.add(fmt.format(v))
-            if 0 <= v <= 1:  # shares may be spoken as percentages
+                out.add(fmt.format(abs(v)))  # signed indices (momentum) are spoken as a size
+            if 0 <= abs(v) <= 1:  # shares and indices may be spoken as percentages
+                v = abs(v)
                 for fmt in ("{:.0f}", "{:.1f}"):
                     out.add(fmt.format(v * 100))
         for m in _NUM.findall(f"{f.window} {f.unit} {f.value}"):

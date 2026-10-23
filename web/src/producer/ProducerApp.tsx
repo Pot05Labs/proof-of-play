@@ -112,7 +112,7 @@ export default function ProducerApp() {
       </header>
       {readOnly && (
         <p className="public-note">
-          Read-only view for judges. Matches replay automatically. Open any insight&rsquo;s agent trace to see the six steps behind it.
+          Read-only view for judges. Matches replay automatically. Open any insight&rsquo;s agent trace to see each agent step behind it.
         </p>
       )}
       {offline && <p className="banner" role="alert">The API is not responding. Retrying every 2 seconds.</p>}
