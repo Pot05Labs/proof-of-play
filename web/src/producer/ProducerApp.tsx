@@ -46,6 +46,11 @@ export default function ProducerApp() {
   const [gateError, setGateError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [info, setInfo] = useState<MatchInfo | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
+
+  useEffect(() => {
+    api.health().then((h) => setIsPublic(!!h.public_console)).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     api.match().then(setInfo).catch(() => undefined);
@@ -73,7 +78,7 @@ export default function ProducerApp() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!key) return;
+    if (!key && !isPublic) return;
     try {
       setView(await api.producer(key));
       setOffline(false);
@@ -81,16 +86,17 @@ export default function ProducerApp() {
       if (e instanceof ApiError && e.status === 403) signOut('That key was not accepted. Check POP_ADMIN_KEY on the server.');
       else setOffline(true);
     }
-  }, [key, signOut]);
+  }, [key, isPublic, signOut]);
 
   useEffect(() => {
-    if (!key) return;
+    if (!key && !isPublic) return;
     void load();
     const id = setInterval(() => void load(), POLL_MS);
     return () => clearInterval(id);
   }, [key, load]);
 
-  if (!key) return <KeyGate onKey={saveKey} error={gateError} />;
+  if (!key && !isPublic) return <KeyGate onKey={saveKey} error={gateError} />;
+  const readOnly = !key;
 
   return (
     <div className="console">
@@ -98,15 +104,22 @@ export default function ProducerApp() {
         <Wordmark />
         <h1>Producer console</h1>
         <span className="head-spacer" />
-        <button type="button" className="btn btn-small btn-ghost" onClick={() => signOut(null)}>
-          Lock console
-        </button>
+        {!readOnly && (
+          <button type="button" className="btn btn-small btn-ghost" onClick={() => signOut(null)}>
+            Lock console
+          </button>
+        )}
       </header>
+      {readOnly && (
+        <p className="public-note">
+          Read-only view for judges. Matches replay automatically. Open any insight&rsquo;s agent trace to see the six steps behind it.
+        </p>
+      )}
       {offline && <p className="banner" role="alert">The API is not responding. Retrying every 2 seconds.</p>}
       <LiveSystem view={view} />
       <div className="console-grid">
         <div style={{ display: 'grid', gap: 16, minWidth: 0 }}>
-          <StartControl pkey={key} onStarted={() => void load()} />
+          {!readOnly && <StartControl pkey={key} onStarted={() => void load()} />}
           <ExperimentPanel pkey={key} />
         </div>
         <InsightLog rows={view?.insights ?? []} info={info} />

@@ -140,3 +140,38 @@ def test_recaps_overlays_and_agent_trace(monkeypatch):
     prod = c.get("/api/producer", headers={"x-pop-key": "k"}).json()
     traced = [r for r in prod["insights"] if r["trace"]]
     assert traced and {"Interpreter", "Verifier"} <= {s["agent"] for s in traced[0]["trace"]}
+
+
+def test_public_console_is_read_only(monkeypatch):
+    c = _client(monkeypatch)
+    assert c.get("/api/producer").status_code == 403  # private by default
+    assert c.get("/api/health").json()["public_console"] is False
+    monkeypatch.setenv("POP_PUBLIC_CONSOLE", "1")
+    assert c.get("/api/health").json()["public_console"] is True
+    assert c.get("/api/producer").status_code == 200
+    assert c.get("/api/readout").status_code == 200
+    assert c.post("/api/admin/start", json={"seed": 7, "speed": 0}).status_code == 403  # starting still needs the key
+
+
+def test_autoloop_plays_matches_back_to_back(monkeypatch):
+    _client(monkeypatch)
+    monkeypatch.setenv("POP_AUTOLOOP_SPEED", "0")
+    monkeypatch.setenv("POP_AUTOLOOP_SEEDS", "7,11")
+    played = []
+    real_run = appmod.B.run
+
+    async def run_and_record():
+        played.append(appmod.B.seed)
+        await real_run()
+        if len(played) == 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(appmod.B, "run", run_and_record)
+    real_sleep = asyncio.sleep
+    monkeypatch.setattr(appmod.asyncio, "sleep", lambda s: real_sleep(0))
+    try:
+        asyncio.run(appmod._autoloop())
+    except asyncio.CancelledError:
+        pass
+    assert played == [7, 11]
+    assert appmod.B.finished and appmod.B.var_overturn

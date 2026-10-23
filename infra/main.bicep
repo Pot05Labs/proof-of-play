@@ -16,6 +16,10 @@ param image string = 'mcr.microsoft.com/k8se/quickstart:latest'
 param cosmosContainer string = 'watchalong'
 @description('Rate limit: session joins per client address per minute')
 param joinPerMinute int = 30
+@description('Judging mode: the producer console is readable without a key. Off during the watch-along.')
+param publicConsole bool = false
+@description('Judging mode: replay matches back to back at this speed. Empty means no autoloop.')
+param autoloopSpeed string = ''
 @secure()
 param adminKey string
 @secure()
@@ -156,6 +160,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'COSMOS_CONTAINER', value: cosmosContainer }
             { name: 'POP_JOIN_PER_MIN', value: string(joinPerMinute) }
             { name: 'POP_INGEST', value: 'eventhubs' }
+            { name: 'POP_PUBLIC_CONSOLE', value: publicConsole ? '1' : '0' }
+            { name: 'POP_AUTOLOOP_SPEED', value: autoloopSpeed }
             { name: 'EVENTHUB_NAMESPACE', value: '${eh.name}.servicebus.windows.net' }
             { name: 'POP_ADMIN_KEY', secretRef: 'admin-key' }
             { name: 'POP_EXPERIMENT_SEED', secretRef: 'experiment-seed' }

@@ -104,6 +104,41 @@ def _admin(key: str | None) -> None:
         raise HTTPException(403, "producer key required")
 
 
+def _public_console() -> bool:
+    """For judging: anyone may READ the producer console and readout. Starting a match still needs the key."""
+    return os.environ.get("POP_PUBLIC_CONSOLE") == "1"
+
+
+def _reader(key: str | None) -> None:
+    if not _public_console():
+        _admin(key)
+
+
+async def _autoloop() -> None:
+    """Judging mode: play match after match so a visitor always finds one live. Seeds rotate, VAR always on."""
+    speed = float(os.environ["POP_AUTOLOOP_SPEED"])
+    seeds = [int(x) for x in os.environ.get("POP_AUTOLOOP_SEEDS", "7,11,23").split(",") if x.strip()]
+    i = 0
+    while True:
+        try:
+            B.seed, B.speed, B.var_overturn = seeds[i % len(seeds)], speed, True
+            B.load()
+            await B.run()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # one bad match must not end the loop
+            logging.getLogger("pop.app").exception("autoloop match failed")
+        i += 1
+        await asyncio.sleep(30)  # the full-time recap stays on screen before the next kick-off
+
+
+@app.on_event("startup")
+async def _start_autoloop() -> None:
+    global _task
+    if os.environ.get("POP_AUTOLOOP_SPEED"):
+        _task = asyncio.create_task(_autoloop())
+
+
 class StartReq(BaseModel):
     seed: int = 7
     speed: float = 1.0
@@ -126,7 +161,8 @@ class EngageReq(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "running": B.running, "finished": B.finished, "seq": B.seq, "model": B.llm.name}
+    return {"ok": True, "running": B.running, "finished": B.finished, "seq": B.seq, "model": B.llm.name,
+            "public_console": _public_console()}
 
 
 @app.post("/api/admin/start")
@@ -233,14 +269,14 @@ async def stream():
 
 @app.get("/api/producer")
 def producer(x_pop_key: str | None = Header(default=None)):
-    _admin(x_pop_key)
+    _reader(x_pop_key)
     return {**B.producer_view(), "store": _STORE.stats() if _STORE else None}
 
 
 @app.get("/api/readout")
 def get_readout(simulated: bool = False, metric: str = "watched_minutes",
                 x_pop_key: str | None = Header(default=None)):
-    _admin(x_pop_key)
+    _reader(x_pop_key)
     log = simulated_log(400, true_lift_minutes=5.0, seed=11) if simulated else LOG
     r = readout(log, metric)
     clean = {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in r.__dict__.items()}

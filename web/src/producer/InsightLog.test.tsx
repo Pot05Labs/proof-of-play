@@ -35,4 +35,23 @@ describe('InsightLog', () => {
     expect(trs).toHaveLength(1);
     expect(within(trs[0]!).getByText('Retracted')).toBeTruthy();
   });
+
+  it('opens the agent trace of one insight, marking the failed step', () => {
+    const traced = row({
+      insight_id: 't', text: 'Repaired sentence.', notes: 'repaired by Editor after: writer rewrite rejected (number 92)',
+      trace: [
+        { agent: 'Writer', action: 'rewrite', input_summary: '', output_summary: 'with a 92% rate', ms: 1500, ok: true },
+        { agent: 'Verifier', action: 'check_writer', input_summary: '', output_summary: 'reject: number 92', ms: 0.8, ok: false },
+        { agent: 'Editor', action: 'repair', input_summary: '', output_summary: 'Repaired sentence.', ms: 1400, ok: true },
+      ],
+    });
+    render(<InsightLog rows={[traced]} info={null} />);
+    expect(screen.queryByRole('list', { name: 'Agent trace' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Show agent trace \(3 steps\)/ }));
+    const list = screen.getByRole('list', { name: 'Agent trace' });
+    const steps = within(list).getAllByRole('listitem');
+    expect(steps).toHaveLength(3);
+    expect(steps[1]!.className).toContain('trace-bad');
+    expect(steps[1]!.textContent).toContain('reject: number 92');
+  });
 });

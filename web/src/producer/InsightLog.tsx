@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import type { MatchInfo, ProducerRow } from '../lib/api';
+import { Fragment, useMemo, useState } from 'react';
+import type { MatchInfo, ProducerRow, TraceStep } from '../lib/api';
 
 type Filter = 'all' | 'rejected' | 'retracted' | 'personalised';
 
@@ -23,8 +23,23 @@ function nameOf(id: string, info: MatchInfo | null): string {
   return id;
 }
 
+function TraceView({ steps }: { steps: TraceStep[] }) {
+  return (
+    <ol className="trace" aria-label="Agent trace">
+      {steps.map((st, i) => (
+        <li key={i} className={st.ok ? 'trace-step' : 'trace-step trace-bad'}>
+          <span className="trace-agent">{st.agent}</span>
+          <span className="trace-out">{st.output_summary}</span>
+          <span className="trace-ms">{st.ms < 10 ? st.ms.toFixed(1) : Math.round(st.ms)} ms</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function InsightLog({ rows, info }: { rows: ProducerRow[]; info: MatchInfo | null }) {
   const [filter, setFilter] = useState<Filter>('all');
+  const [open, setOpen] = useState<string | null>(null);
   const counts = useMemo(
     () => Object.fromEntries(FILTERS.map((f) => [f.id, rows.filter(f.test).length])) as Record<Filter, number>,
     [rows],
@@ -72,8 +87,10 @@ export function InsightLog({ rows, info }: { rows: ProducerRow[]; info: MatchInf
             <tbody>
               {shown.map((r) => {
                 const rej = isRejectedRewrite(r);
+                const isOpen = open === r.insight_id;
                 return (
-                  <tr key={r.insight_id} className={[rej ? 'rejected' : '', r.retracted ? 'pulled' : ''].join(' ')}>
+                  <Fragment key={r.insight_id}>
+                  <tr className={[rej ? 'rejected' : '', r.retracted ? 'pulled' : ''].join(' ')}>
                     <td className="min">{r.minute}&rsquo;</td>
                     <td className="text">
                       {r.text}
@@ -81,6 +98,12 @@ export function InsightLog({ rows, info }: { rows: ProducerRow[]; info: MatchInf
                         <div className={rej ? 'notes-bad' : 'verdict-note'} style={{ fontSize: 13, marginTop: 4 }}>
                           {r.notes}
                         </div>
+                      )}
+                      {r.trace && r.trace.length > 0 && (
+                        <button type="button" className="trace-toggle" aria-expanded={isOpen}
+                          onClick={() => setOpen(isOpen ? null : r.insight_id)}>
+                          {isOpen ? 'Hide' : 'Show'} agent trace ({r.trace.length} steps)
+                        </button>
                       )}
                     </td>
                     <td>{isPersonalised(r) || r.audience === 'analyst' ? r.audience : 'generic'}</td>
@@ -95,6 +118,12 @@ export function InsightLog({ rows, info }: { rows: ProducerRow[]; info: MatchInf
                     </td>
                     <td>{r.latency_ms.toFixed(1)} ms</td>
                   </tr>
+                  {isOpen && r.trace && (
+                    <tr className="trace-row">
+                      <td colSpan={7}><TraceView steps={r.trace} /></td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

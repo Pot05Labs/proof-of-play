@@ -171,6 +171,16 @@ export interface EvidenceResponse {
   evidence: Record<string, string[]>;
 }
 
+/** One step of the agent pipeline for one insight (src/pop/agents/orchestrator.py TraceStep). */
+export interface TraceStep {
+  agent: string;
+  action: string;
+  input_summary: string;
+  output_summary: string;
+  ms: number;
+  ok: boolean;
+}
+
 export interface ProducerRow {
   insight_id: string;
   minute: number;
@@ -183,6 +193,10 @@ export interface ProducerRow {
   club: string | null;
   player: string | null;
   latency_ms: number;
+  /** Moment kind, e.g. goal or recap_full_time. */
+  kind?: string;
+  /** Every agent step that produced this insight, in order. */
+  trace?: TraceStep[];
 }
 
 /** Model token accounting (src/pop/agents/llm.py Usage.as_dict). cached_input_tokens is a subset of input_tokens. */
@@ -262,6 +276,8 @@ export interface Health {
   finished: boolean;
   seq: number;
   model: string;
+  /** Judging mode: the producer console is readable without a key. */
+  public_console?: boolean;
 }
 
 export class ApiError extends Error {
