@@ -53,7 +53,7 @@ The suggested features:
 
 **2. Live retraction on a VAR overturn.** When VAR rules out a goal, the engine annuls the shot, corrects the score and xG, and retracts every fact and moment built on it. Every insight that cited those facts leaves the screen, marked "Updated: VAR decision". The viewer never keeps a sentence about a goal that no longer counts.
 
-**3. A randomised holdout that measures the personalisation.** Each viewer who consents is assigned once, at random, to personalised or generic insights on the same match, clock and facts. The primary metric is watched minutes per session. The readout is the difference in means with a 95% bootstrap interval, and the analysis plan was written down before the watch-along in [docs/PREREG.md](docs/PREREG.md). We publish the result whatever it is, including no difference.
+**3. A randomised holdout that measures the personalisation.** Each viewer who consents is assigned once, at random, to personalised or generic insights on the same match, clock and facts. The primary metric is watched minutes per session. The readout is the difference in means with a 95% bootstrap interval, and the analysis plan was written down before the watch-along in [docs/PREREG.md](docs/PREREG.md). We publish the result whatever it is, including no difference. The live result is in [docs/RESULT.md](docs/RESULT.md): the system ran a full match without a fault, and with 7 viewers the experiment was too small to call.
 
 ## Architecture
 
