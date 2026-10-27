@@ -24,6 +24,8 @@ simulator ──events──▶ stream ──▶ engine (state + facts) ──�
                                          viewer sessions ──engagement events──▶ experiment ─┘
 ```
 
+As built (see [ARCHITECTURE.md](ARCHITECTURE.md)): ingest runs on Azure Event Hubs, the API and web app on Azure Container Apps, the agents on Microsoft Agent Framework with gpt-4.1-mini on Microsoft Foundry, and the log on Azure Cosmos DB. Overlays are served as timed JSON from `/api/overlays` and the live feed as server-sent events, so Web PubSub was not needed. Languages come from the model and a written style guide, not Translator or Speech. The targets below are the original plan from 21 October.
+
 | Stage | Module | Cloud target |
 |---|---|---|
 | Ingest | `pop.sim` streams events; `pop.stream` abstracts transport | Azure Event Hubs |
@@ -142,5 +144,5 @@ Python 3.12, `uv`, `pytest`, `ruff`. Frontend: Vite + React + TypeScript.
 | (iii) Narratives, player context, milestones, recaps | Explainer agent, recap at half and full time |
 | (iv) Explainability: control vs chaos, pressure shifts, rhythm | engine indices, Moment kinds |
 | (v) Data innovation: create or extend synthetic dataset | `pop.sim` with team styles, seeded, documented |
-| (vi) Multi-language storytelling | Translator and Speech, at least English, isiZulu, Kiswahili, Spanish |
+| (vi) Multi-language storytelling | The model and a written style guide (`pop/agents/style_guide.py`), in English, isiZulu, Kiswahili and Spanish. Translator and Speech were planned and not needed |
 | Our addition: proof that personalisation works | `pop.experiment` holdout and live readout |
