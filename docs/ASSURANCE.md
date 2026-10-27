@@ -1,6 +1,6 @@
 # Assurance report
 
-Generated 2026-10-27T00:09:47+00:00 at commit `addd424` by `scripts/assurance.py`.
+Generated 2026-10-27T20:46:41+00:00 at commit `3e80b99` by `scripts/assurance.py`.
 Every check is run fresh. A skipped test counts as a failure. The builder of a component never certifies it.
 
 **Overall: PASS**
