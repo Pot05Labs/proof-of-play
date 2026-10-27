@@ -6,24 +6,43 @@ Proof of Play is one Python service (FastAPI) and one web app (Vite, React, Type
 
 ```mermaid
 flowchart LR
-    SIM["Simulator (pop.sim)<br/>seeded fictional match"] -->|"events, paced by match clock"| ENG["Engine (pop.engine)<br/>state, facts, evidence"]
+    SIM["Simulator (pop.sim)<br/>seeded fictional match"] -->|"events, paced by match clock<br/>partition key = match id"| EH[("Azure Event Hubs<br/>match-events")]
+    EH --> ING["Ingest consumer (pop.api.ingest)<br/>exactly once, strictly in order"]
+    SIM -.->|"watchdog: applied from local buffer<br/>after 3 s lag"| ING
+    ING --> ENG["Engine (pop.engine)<br/>state, facts, evidence"]
     ENG --> MOM["Moments<br/>importance 0..1"]
     ENG -->|"VAR overturn"| RET["Retraction<br/>facts and moments"]
     MOM --> Q["Shuffled, arm-fair queue"]
     Q --> POOL["Worker pool<br/>off the match clock"]
-    POOL --> EXP["Explainer (model)<br/>rewrites a grounded draft"]
-    EXP <-->|"Entra ID"| FDY[("Microsoft Foundry<br/>gpt-4.1-mini")]
-    EXP --> VER{"Verifier (code)<br/>numbers and names in cited facts?"}
-    VER -->|pass| CACHE["Insight cache<br/>per moment and collapsed profile"]
-    VER -->|fail| DRAFT["Grounded draft<br/>published instead"] --> CACHE
+    POOL --> AG["Agent workflow<br/>(Microsoft Agent Framework, below)"]
+    AG <-->|"Entra ID"| FDY[("Microsoft Foundry<br/>gpt-4.1-mini")]
+    AG --> CACHE["Insight cache<br/>per moment and collapsed profile"]
     RET -->|"pulls insights citing retracted facts"| CACHE
     CACHE --> FEED["Per-arm feed<br/>/api/feed/{session}"]
+    CACHE --> OVL["Timed overlays<br/>/api/overlays"]
     FEED --> VIEW["Viewer app<br/>cards, Why?, Show me"]
     VIEW -->|"heartbeats and taps"| LOG["Experiment log"]
     LOG -->|"write-through, 30-day TTL"| COS[("Azure Cosmos DB")]
-    CACHE --> PROD["Producer console<br/>insight log, verdicts, readout"]
+    CACHE --> PROD["Producer console<br/>insight log, agent trace, readout"]
     LOG --> PROD
 ```
+
+### The agent workflow, per moment and viewer profile
+
+```mermaid
+flowchart LR
+    I["Interpreter (code)<br/>frames the moment,<br/>builds the grounded draft"] --> W["Writer (model)<br/>rephrases for the profile"]
+    W -->|verify| V{"Verifier (code)<br/>every number and name<br/>in the cited facts?"}
+    W -->|"timeout, refusal, empty"| F["Fallback (code)<br/>re-verified grounded draft"]
+    V -->|pass| P["Publisher"]
+    V -->|"fail, first time"| E["Editor (model)<br/>one repair with the<br/>Verifier's reason"]
+    E -->|verify| V
+    V -->|"fail after repair"| F
+    E -->|"timeout, refusal, empty"| F
+    F --> P
+```
+
+Shared state is an immutable record per moment. Each step returns a new copy with its own trace entry, and routing is explicit on the edges above. The workflow never raises: every path ends at the Publisher with either a verified rewrite or the grounded draft.
 
 ## Deployment, Azure South Africa North
 
@@ -35,7 +54,7 @@ flowchart TB
         ACR[("Container Registry<br/>admin user off")] -->|"AcrPull, managed identity"| APP
         APP -->|"Cognitive Services User"| FDY["Microsoft Foundry (AI Services)<br/>project 'proof-of-play'<br/>gpt-4.1-mini, local auth off"]
         APP -->|"Cosmos data contributor"| COS[("Cosmos DB serverless<br/>db 'pop', container 'engagement'<br/>TTL 30 days, local auth off")]
-        APP -.->|"sender and receiver roles<br/>not used by the code yet"| EH["Event Hubs namespace<br/>hub 'match-events', local auth off<br/>provisioned for ingest"]
+        APP -->|"Data Sender and Data Receiver"| EH["Event Hubs namespace<br/>hub 'match-events', local auth off<br/>every match event goes through it"]
         APP --> LA["Log Analytics workspace"]
     end
 ```
@@ -86,5 +105,5 @@ The demo-only `POP_DEMO_CHAOS` switch wraps the model so that a set share of rew
 - **Managed identity.** The Container App's system-assigned identity holds role assignments for Foundry, Cosmos DB, Event Hubs and the registry. Local key auth is disabled on Foundry, Cosmos DB and Event Hubs, and the registry admin user is off. No keys live in the repo or in the app's data path.
 - **Secrets.** The producer key and experiment seed are Container Apps secrets passed as secure Bicep parameters.
 - **Rate limits.** Joining is limited per client address (30 a minute). The address is the last `X-Forwarded-For` entry, which the Container Apps ingress appends, so a client cannot forge its way around the limit. Engagement events are limited per session (120 a minute).
-- **Producer key.** The producer view, the readout and the start control require the `X-Pop-Key` header to match `POP_ADMIN_KEY`.
+- **Producer key.** The producer view, the readout and the start control require the `X-Pop-Key` header to match `POP_ADMIN_KEY`. In judging mode (`POP_PUBLIC_CONSOLE=1`) the producer view and readout are readable without the key, and starting a match by hand is switched off.
 - **Consent.** The API refuses to create a session without it.

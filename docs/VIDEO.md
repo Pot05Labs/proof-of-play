@@ -16,7 +16,7 @@ Under two minutes, read by Vuyani. Plain spoken English, unhurried. The rules re
 | Time | On screen | Voiceover |
 |---|---|---|
 | 0:00 to 0:08 | Black, then the live viewer: pitch, scoreboard, an insight card sliding in | Every broadcast now says personalisation works. Nobody shows you the proof. |
-| 0:08 to 0:20 | Close on the insight card, then the "Why?" button | And when AI writes the stats, nobody shows you they're true. Proof of Play does both. Every number is checked, and every viewer is part of an experiment. |
+| 0:08 to 0:20 | Close on the insight card, then the "Why?" button | And when AI writes the stats, nobody proves they're safe to air. Proof of Play does both. Every number is checked, and every viewer is part of an experiment. |
 | 0:20 to 0:32 | Join screen: pick Casual fan, a club, a player, a language. Consent line visible. Tap Join | You join with a few taps. How you watch, your club, your player, your language. No names. You're told you might see one of two versions. |
 | 0:32 to 0:46 | Live pitch with events playing, gauges moving: momentum, control versus chaos | This is a fictional match, simulated live. A match engine turns every event into stats and key moments. The numbers only ever come from code. |
 | 0:46 to 0:58 | Tap "Why?" on a card. The panel lists facts, values and source events. Tap "Show me": the events light up on the pitch | Every insight cites its facts. Tap why, and you see the numbers and the exact events behind them. Show me puts them on the pitch. |

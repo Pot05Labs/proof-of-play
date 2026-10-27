@@ -92,6 +92,38 @@ Claude Sonnet 5.5 on Microsoft Foundry is also coded as a second backend (`POP_L
 
 Tests cover the invariants in [docs/SPEC.md](docs/SPEC.md): byte-identical replays, score equals goals minus overturned goals, all indices in range, no published insight citing a retracted fact, stable and balanced arm assignment, and a match clock that never waits for the model.
 
+## Path to production
+
+Proof of Play was built so a studio could put AI-written insight on air without risking a false number. Here is what already works at production standard, and what a broadcaster would add.
+
+**Already production-grade**
+
+- **No false numbers on air.** Every figure comes from the engine. The Verifier is plain code, and when a rewrite fails the viewer sees the grounded draft. A model outage slows the words down and never stops the match.
+- **Corrections propagate.** A VAR overturn retracts every fact and insight built on the goal, live.
+- **Every sentence is auditable.** Each insight carries the facts it cites, its source events and a step-by-step agent trace in the producer console.
+- **No keys.** Managed identity for Foundry, Cosmos DB, Event Hubs and the registry, with local auth switched off. Infrastructure is one Bicep template.
+- **Privacy by design.** Anonymous sessions, explicit consent, a 30-day automatic delete, and the experiment arm never reaches the browser.
+- **One command checks everything.** `scripts/assurance.py` runs the tests, lint, a secret scan, a scan for real club names and the production build, and writes the report. A skipped test counts as a failure.
+- **Predictable cost.** About US$0.05 of model spend for a full match, with 75% of model input served from cache. Model calls scale with moments and distinct viewer profiles, not with the number of viewers, because viewers with the same profile share one call.
+
+**What a studio would add, in order**
+
+| Step | Change | What stays the same |
+|---|---|---|
+| 1. Real data | An adapter that maps the provider's live event feed onto our event schema ([SPEC.md](docs/SPEC.md)) and publishes to the same Event Hub | Engine, agents, Verifier, viewer app |
+| 2. Scale out | One broadcast worker per match (Event Hubs already partitions by match id). The insight cache and feeds move to a shared store, and the API runs as many stateless replicas | The pipeline and its tests |
+| 3. Sign-in | Entra ID sign-in for the producer console through Container Apps built-in authentication, with producer and read-only roles, replacing the shared key | Rate limits, consent, the 30-day delete |
+| 4. Languages | Native-speaker review of the style guide and the UI labels for each market before air | The Verifier, which checks numbers and names in any language |
+| 5. Operations | Log Analytics alerts on Verifier rejection rate, write lag and model failures. Run the assurance script in CI on every release | The producer console's live system band |
+| 6. Measure at scale | Run the same pre-registered holdout on a real audience. 150 sessions per arm detects a difference of 6 to 7 watched minutes ([PREREG.md](docs/PREREG.md)), which one televised match reaches easily | Assignment, blinding, the readout |
+
+**Known limits today**
+
+- It runs as one replica. A restart keeps the engagement log in Cosmos DB, but the match has to be started again.
+- The producer console uses a shared key, not sign-in.
+- The isiZulu and Kiswahili UI labels have not had a native speaker's review.
+- Our live experiment had 7 viewers, too few to measure an effect. It proves the method works end to end, not the size of the effect.
+
 ## Run it locally
 
 Needs Python 3.12+, [uv](https://docs.astral.sh/uv/) and Node 22. No cloud account needed: the default model is an offline stub.
