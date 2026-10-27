@@ -12,7 +12,7 @@ A seeded simulator plays a fictional match in real time, and a deterministic eng
 
 ## For judges
 
-The live app link is on our submission page. It runs in judging mode until the judging period ends on 10 November 2026: no login and no key.
+**Live app: [pop-app.redsmoke-8822b6f2.southafricanorth.azurecontainerapps.io](https://pop-app.redsmoke-8822b6f2.southafricanorth.azurecontainerapps.io)** (producer console at [/producer](https://pop-app.redsmoke-8822b6f2.southafricanorth.azurecontainerapps.io/producer)). It runs in judging mode until the judging period ends on 10 November 2026: no login and no key.
 
 1. Open the link, choose how you watch (casual fan or analyst), a club, a player and a language, and join. A fictional match is always live. Matches replay back to back at 10x speed.
 2. Tap **Why?** on any insight card to see the facts and match events behind it, and **Show me** to light them up on the pitch.
@@ -121,7 +121,7 @@ Proof of Play was built so a studio could put AI-written insight on air without 
 
 - It runs as one replica. A restart keeps the engagement log in Cosmos DB, but the match has to be started again.
 - The producer console uses a shared key, not sign-in.
-- The isiZulu and Kiswahili UI labels have not had a native speaker's review.
+- The isiZulu and Kiswahili UI labels have not had a native speaker's review, and nor has the model's wording. Some isiZulu sentences render a five-minute window as "five years". The Verifier checks numbers and names, not word choice, so these pass: a style-guide fix and a native-speaker review come before air.
 - Our live experiment had 7 viewers, too few to measure an effect. It proves the method works end to end, not the size of the effect.
 
 ## Run it locally
