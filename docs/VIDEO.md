@@ -13,28 +13,30 @@ Under two minutes, read by Vuyani. Plain spoken English, unhurried. The rules re
 
 ## Main cut, 1:56
 
-| Time | On screen | Voiceover |
-|---|---|---|
-| 0:00 to 0:08 | Black, then the live viewer: pitch, scoreboard, an insight card sliding in | Every broadcast now says personalisation works. Nobody shows you the proof. |
-| 0:08 to 0:20 | Close on the insight card, then the "Why?" button | And when AI writes the stats, nobody proves they're safe to air. Proof of Play does both. Every number is checked, and every viewer is part of an experiment. |
-| 0:20 to 0:32 | Join screen: pick Casual fan, a club, a player, a language. Consent line visible. Tap Join | You join with a few taps. How you watch, your club, your player, your language. No names. You're told you might see one of two versions. |
-| 0:32 to 0:46 | Live pitch with events playing, gauges moving: momentum, control versus chaos | This is a fictional match, simulated live. A match engine turns every event into stats and key moments. The numbers only ever come from code. |
-| 0:46 to 0:58 | Tap "Why?" on a card. The panel lists facts, values and source events. Tap "Show me": the events light up on the pitch | Every insight cites its facts. Tap why, and you see the numbers and the exact events behind them. Show me puts them on the pitch. |
-| 0:58 to 1:06 | Switch to an isiZulu viewer. An insight card in isiZulu | The words are written by a model on Microsoft Foundry, in your language. Here it is in isiZulu. |
-| 1:06 to 1:20 | A goal card on screen. VAR overturn: the score corrects, the card shows "Updated: VAR decision" and leaves | Now VAR rules the goal out. The engine takes it off the score and the expected goals, and every insight built on that goal comes off the screen. Live. |
-| 1:20 to 1:36 | Producer console, insight log. Filter to "Rewrites rejected". Hold on the Verifier note, for example "number 41 is not in the cited facts" | This is the producer console. For this demo we switched on a setting that makes the model invent a stat. Our Verifier is plain code. It caught it, rejected the sentence, and published the grounded version instead. |
-| 1:36 to 1:50 | Experiment panel: personalised minus generic, watched minutes, the interval chart. Real result only | Last part. Viewers were randomly split between personalised and generic insights. Seven joined our live watch-along. Far too few to tell the versions apart, and we're publishing that. |
-| 1:50 to 1:56 | Azure portal: the resource group in South Africa North, then the wordmark and the line | Built on Azure. Proof of Play. Every broadcast says personalisation works. Ours proves it. |
+The story in three acts. **Act 1, the problem:** broadcasters want AI to explain the match to every fan, but AI can invent a number and nobody proves personalisation works. **Act 2, the match:** we follow a viewer through a live match, and the twist is the VAR overturn, where the truth changes mid-broadcast. **Act 3, the proof:** behind the screen, the Verifier catches the AI cheating, the experiment reports honestly, and it all runs on Azure, ready for a studio.
 
-About 240 spoken words.
+Every claim in the voiceover is shown on screen as it is said.
+
+| Time | Act | On screen | Voiceover |
+|---|---|---|---|
+| 0:00 to 0:12 | 1 | Live viewer: pitch moving, scoreboard, an insight card sliding in | Every broadcaster wants AI to explain the match to every fan. Two things stop them. AI can invent a number. And nobody proves personalisation works. |
+| 0:12 to 0:16 | 1 | Title card: Proof of Play wordmark | This is Proof of Play. It fixes both. |
+| 0:16 to 0:28 | 2 | Join screen: choose Analyst, a club, a player, a language. Consent line in frame. Tap Join | You join in a few taps. Fan or analyst, your club, your player, your language. No names. And you're told you may see one of two versions. |
+| 0:28 to 0:40 | 2 | Live pitch with play moving, momentum and control-versus-chaos gauges shifting | A fictional match plays live. Every event streams through Azure Event Hubs into a match engine, and the engine is the only thing allowed to produce a number. |
+| 0:40 to 0:52 | 2 | Tap "Why?" on a card: facts, values, source events. Then "Show me": the events light up on the pitch | Six agents on Microsoft Agent Framework turn each moment into a sentence for you. Tap why, and you see the exact facts and events behind it. |
+| 0:52 to 1:02 | 2 | Split screen: analyst card in English beside a casual fan's card in isiZulu, same moment | Same moment, two viewers. The analyst gets the numbers. The casual fan gets the story, in isiZulu, written on Microsoft Foundry. |
+| 1:02 to 1:16 | 2 | The 53rd-minute goal by the viewer's favourite player, score 3-0. VAR review, then overturned: score back to 2-0, cards marked "Updated: VAR decision" leave | Fifty-three minutes. Goal. Then VAR rules it out for handball. The score corrects, and every insight built on that goal leaves every screen. Live. |
+| 1:16 to 1:32 | 3 | Producer console: "Rewrites rejected" filter, the Verifier's reason readable, then one insight's agent trace step by step | Behind the screen, we made the writer cheat and invent stats. Our Verifier is plain code. It rejects any number the facts don't support, and the viewer gets the true version. Every step is traced. |
+| 1:32 to 1:46 | 3 | Experiment panel with the real watch-along readout | Every viewer is also in an experiment: personalised against generic, assigned at random. We wrote the plan first. Seven joined our live match. Too few to call. We publish it anyway. |
+| 1:46 to 1:56 | 3 | Azure resource group in South Africa North, then the closing card | One Bicep template on Azure. Five cents of model spend a match. Every broadcast says personalisation works. Ours proves it. |
+
+About 240 spoken words: a calm 2.1 words a second.
 
 ### The real watch-along result
 
 From [RESULT.md](RESULT.md), 24 October, 7 sessions: 4 personalised, 3 generic. Personalised minus generic watched minutes: **-13.52** minutes, 95% interval **-38.13 to 0.81**. The interval includes zero.
 
-Line for 1:36 to 1:52 (about 25 words):
-
-> Viewers were randomly split between personalised and generic insights. Seven joined our live watch-along. Far too few to tell the versions apart, and we're publishing that.
+The line at 1:32 to 1:46 reports it as: seven joined, too few to call, published anyway.
 
 Line for the 30-second cut (one short clause):
 
@@ -42,30 +44,30 @@ Line for the 30-second cut (one short clause):
 
 Do not round the interval into a claim it does not make, do not mention the secondary metric, and do not use the simulated readout here.
 
-## Recording order
+## Footage
+
+Most of the cut is already recorded: Playwright drove the app locally at 1920x1080 and 133% zoom, seed 7, VAR overturn on, with the offline stub model. The stub publishes the grounded English draft, so these shots show true template sentences, not model prose. The voiceover only names Foundry over the isiZulu shot, which is filmed on Azure.
+
+| Clip | Covers | Source |
+|---|---|---|
+| A_join | 0:16 to 0:28 | Local, clean server |
+| B_live_opening | 0:00 to 0:12 | Local, clean server |
+| C_why_showme | 0:40 to 0:52 | Local, clean server |
+| D_pitch_gauges | 0:28 to 0:40 | Local, clean server |
+| E_goal_var_retraction | 1:02 to 1:16 | Local, clean server. Goal at about 6 s, overturn and "Updated: VAR decision" at about 20 s |
+| F_producer_verifier_trace | 1:16 to 1:32 | Local, `POP_DEMO_CHAOS=0.3`. Labelled "stub+chaos" on screen. The trace shows the Writer's invented "7th time this month", two rejections and the Fallback |
+| G_title_card, H_closing_card | 0:12 to 0:16, 1:50 to 1:56 | Rendered in the app's fonts and colours |
+
+`rough_cut.mp4` lays these out on the timings above at exactly 1:56, with labelled placeholders for the three shots below. Record the voiceover over it and drop the three shots in.
+
+## Still to film, in this order
 
 The experiment panel reads whichever Cosmos container the deployment is on, so the order matters.
 
-1. **Now, on the current deployment (`watchalong`):** open the producer console and record shot 10 (experiment panel, real readout). Do not join as a viewer on this deployment: every join is a new watch-along session.
-2. **Locally, `POP_DEMO_CHAOS=0.3`:** record shot 9 (rejected rewrite with the Verifier note).
-3. **Switch to judging:** `scripts/deploy.sh v2 engagement 30 judging`. From here on, sessions land in `engagement`, not `watchalong`.
-4. **On the judging deployment:** record shots 1 to 8 and 12. Matches replay back to back at 10x with the VAR overturn on, so the goal and retraction (shot 8) come round every few minutes. Check the isiZulu row is verified in the producer log before shot 7.
-5. **Azure portal:** shot 11.
-
-## Shot list
-
-1. Viewer, live screen with an insight card arriving (desktop, 1440 wide).
-2. Insight card close-up with "Why?" and "Show me" buttons.
-3. Join screen: mode, club, player, language, consent line, Join.
-4. Live pitch and gauges over a passage of play.
-5. "Why?" panel: facts, values, windows, "Computed by", evidence events.
-6. "Show me": highlighted events on the pitch.
-7. isiZulu viewer with a model-written isiZulu insight (deployed app).
-8. Goal, then VAR overturn: score correction and the "Updated: VAR decision" card.
-9. Producer console insight log, filtered to a rejected rewrite, Verifier note readable (chaos run).
-10. Producer experiment panel with the real readout.
-11. Azure portal: the resource group overview with region South Africa North and the resources listed.
-12. Closing card: pot/labs wordmark and "Every broadcast says personalisation works. Ours proves it."
+1. **Readout (1:32 to 1:46), on the current deployment (`watchalong`), before anything else.** Open the producer console and hold on the experiment panel. Do not join as a viewer on this deployment: every join is a new watch-along session.
+2. **Switch to judging:** `scripts/deploy.sh v2 engagement 30 judging`. From here on, sessions land in `engagement`, not `watchalong`.
+3. **isiZulu split (0:52 to 1:02), on the judging deployment.** Two browser windows side by side: an analyst in English and a casual fan in isiZulu, both following the same club. Hold on a moment both cards cover. Check in the producer log that the isiZulu row is verified, not the English fallback draft.
+4. **Azure portal (1:46 to 1:50):** the resource group overview, region South Africa North, resources listed.
 
 ## 30-second cut
 
