@@ -10,6 +10,18 @@ Built for the Microsoft x Premier League "Inside the Game: Developer Hackathon",
 
 A seeded simulator plays a fictional match in real time, and a deterministic engine turns every event into stats, facts and key moments. A model on Microsoft Foundry rewrites each moment for the viewer's mode, club, player and language, and a code Verifier rejects any sentence that uses a number or name the facts do not support. Every viewer is randomly assigned to a personalised or a generic insight layer on the same match, and the producer console shows the difference in watched minutes with a 95% interval.
 
+## For judges
+
+The live app link is on our submission page. It runs in judging mode until the judging period ends on 10 November 2026: no login and no key.
+
+1. Open the link, choose how you watch (casual fan or analyst), a club, a player and a language, and join. A fictional match is always live. Matches replay back to back at 10x speed.
+2. Tap **Why?** on any insight card to see the facts and match events behind it, and **Show me** to light them up on the pitch.
+3. Wait for the VAR overturn, which comes round in every match. The score corrects and every insight built on the goal leaves the screen, marked "Updated: VAR decision".
+4. Open `/producer` on the same address. It is read-only in judging mode. You'll see the insight log with each insight's agent trace, the live system band, and the experiment readout.
+5. Join a second time in another language, for example isiZulu or Spanish, to compare two viewers side by side.
+
+Your sessions go to a separate data set from our pre-registered watch-along, so they do not change the published result.
+
 ## Screenshots
 
 | Join | Live | Why? |

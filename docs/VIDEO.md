@@ -1,6 +1,6 @@
 # Demo video script
 
-Two minutes, read by Vuyani. Plain spoken English, unhurried. Judges are only guaranteed the first two minutes, so the problem and the hook land in the first 20 seconds.
+Under two minutes, read by Vuyani. Plain spoken English, unhurried. The rules require the video to be **less than** two minutes and judges need not watch past 2:00, so the cut ends at 1:56 and the problem and the hook land in the first 20 seconds.
 
 ## Before recording
 
@@ -9,8 +9,9 @@ Two minutes, read by Vuyani. Plain spoken English, unhurried. Judges are only gu
 - **Chaos shot:** record locally only, with `POP_DEMO_CHAOS=0.3`. A separate revision of the deployed app shares the same engagement container, so it does not protect the experiment.
 - **Holdout shot:** use the real readout once the watch-along is done. If you show the simulated toggle at all, keep the SIMULATED banner in frame and say no number from it.
 - Run the match with the VAR overturn on (the default) so the retraction happens on screen.
+- **Rules for the video (Official Rules 4.4):** under 2:00; shows the app actually running; public URL on YouTube or Vimeo (unlisted is not public: set it to public); no third-party trademarks and no copyrighted music. Use no music, or a track you hold a licence for. Nothing from the Premier League: no badge, logo or league name on screen.
 
-## Main cut, 2:00
+## Main cut, 1:56
 
 | Time | On screen | Voiceover |
 |---|---|---|
@@ -22,10 +23,10 @@ Two minutes, read by Vuyani. Plain spoken English, unhurried. Judges are only gu
 | 0:58 to 1:06 | Switch to an isiZulu viewer. An insight card in isiZulu | The words are written by a model on Microsoft Foundry, in your language. Here it is in isiZulu. |
 | 1:06 to 1:20 | A goal card on screen. VAR overturn: the score corrects, the card shows "Updated: VAR decision" and leaves | Now VAR rules the goal out. The engine takes it off the score and the expected goals, and every insight built on that goal comes off the screen. Live. |
 | 1:20 to 1:36 | Producer console, insight log. Filter to "Rewrites rejected". Hold on the Verifier note, for example "number 41 is not in the cited facts" | This is the producer console. For this demo we switched on a setting that makes the model invent a stat. Our Verifier is plain code. It caught it, rejected the sentence, and published the grounded version instead. |
-| 1:36 to 1:52 | Experiment panel: personalised minus generic, watched minutes, the interval chart. Real result only | Last part. Viewers were randomly split between personalised and generic insights. Seven joined our live watch-along. Far too few to tell the versions apart, and we're publishing that. |
-| 1:52 to 2:00 | Azure portal: the resource group in South Africa North, then the wordmark and the line | It runs on Azure in South Africa North. Proof of Play. Every broadcast says personalisation works. Ours proves it. |
+| 1:36 to 1:50 | Experiment panel: personalised minus generic, watched minutes, the interval chart. Real result only | Last part. Viewers were randomly split between personalised and generic insights. Seven joined our live watch-along. Far too few to tell the versions apart, and we're publishing that. |
+| 1:50 to 1:56 | Azure portal: the resource group in South Africa North, then the wordmark and the line | Built on Azure. Proof of Play. Every broadcast says personalisation works. Ours proves it. |
 
-About 245 spoken words.
+About 240 spoken words.
 
 ### The real watch-along result
 
